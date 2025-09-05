@@ -2,7 +2,7 @@
 <?php
 session_start();
 header('Content-Type: application/json');
-require 'db.php';
+require 'php/db.php';
 
 // Protege o endpoint
 if(!isset($_SESSION['admin_id'])){

@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require 'db.php';
+require 'php/db.php';
 
 $cpf = preg_replace('/\D/','', $_POST['cpf'] ?? '');
 $senha = $_POST['senha'] ?? '';

@@ -1,5 +1,5 @@
 <?php
-require 'db.php'; // usa as credenciais do db.php abaixo
+require 'php/db.php'; // usa as credenciais do db.php abaixo
 $cpf = '';
 $senha = '123456';
 $nome = 'Administrador Demo';
