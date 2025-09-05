@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require 'php/db.php';
+require 'db.php';
 
 $nome = $_POST['nome'] ?? '';
 $cpf = preg_replace('/\D/','', $_POST['cpf'] ?? '');

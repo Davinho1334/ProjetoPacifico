@@ -2,7 +2,7 @@
 <?php
 session_start();
 header('Content-Type: application/json');
-require 'php/db.php';
+require 'db.php';
 
 // Protege o endpoint: só admins logados podem acessar
 if(!isset($_SESSION['admin_id'])){

@@ -1,6 +1,6 @@
 <?php
 require 'php/db.php'; // usa as credenciais do db.php abaixo
-$cpf = '';
+$cpf = '12345678901';
 $senha = '123456';
 $nome = 'Administrador Demo';
 $hash = password_hash($senha, PASSWORD_DEFAULT);
