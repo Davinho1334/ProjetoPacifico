@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login Administrador</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="form-container" >
+    <h2>Login - Administrador</h2>
+    <form id="loginForm">
+      <label>CPF
+        <input required name="cpf" type="text" />
+      </label>
+      <label>Senha
+        <input required name="senha" type="password" />
+      </label>
+
+      <div class="actions">
+        <button class="btn" type="submit">Entrar</button>
+        <a class="btn btn-outline" href="index.html">Voltar</a>
+      </div>
+      <div id="msg" class="msg"></div>
+    </form>
+  </main>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const f = e.target;
+      const data = new FormData(f);
+      const res = await fetch('php/admin_login.php', { method:'POST', body: data });
+      const json = await res.json();
+      const msg = document.getElementById('msg');
+      if(json.success){
+        // salvar simples session token (para demo) e redirecionar
+        sessionStorage.setItem('adminToken', json.token);
+        location.href = 'admin_dashboard.html';
+      } else {
+        msg.className = 'msg error';
+        msg.innerText = json.message;
+      }
+    });
+  </script>
+</body>
+</html>

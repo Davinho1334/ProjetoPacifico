@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cadastro do Aluno</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="form-container">
+    <h2>Cadastro do Aluno</h2>
+    <form id="cadastroForm">
+      <label>Nome completo
+        <input required name="nome" type="text" />
+      </label>
+
+      <label>CPF
+        <input required name="cpf" type="text" maxlength="14" />
+      </label>
+
+      <label>R.A. (opcional)
+        <input name="ra" type="text" />
+      </label>
+
+      <label>Ano de nascimento
+        <input required name="ano_nascimento" type="number" min="1900" max="2100" />
+      </label>
+
+      <label>Curso
+        <input required name="curso" type="text" />
+      </label>
+
+      <label>Turno
+        <select name="turno" required>
+          <option value="Manhã">Manhã</option>
+          <option value="Tarde">Tarde</option>
+          <option value="Noite">Noite</option>
+        </select>
+      </label>
+
+      <label>Série
+        <select name="serie" required>
+          <option>1º</option>
+          <option>2º</option>
+          <option>3º</option>
+        </select>
+      </label>
+
+      <div class="actions">
+        <button type="submit" class="btn">Finalizar cadastro</button>
+        <a href="index.html" class="btn btn-outline">Voltar</a>
+      </div>
+      <div id="msg" class="msg"></div>
+    </form>
+  </main>
+
+  <script src="js/script.js"></script>
+  <script>
+    // lógica de envio (fetch) já modularizada no script.js; chama a função:
+    document.getElementById('cadastroForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target;
+      const data = new FormData(f);
+      const res = await fetch('php/register_student.php', { method:'POST', body: data });
+      const json = await res.json();
+      const msg = document.getElementById('msg');
+      if(json.success){
+        msg.className = 'msg success';
+        msg.innerText = json.message;
+        setTimeout(()=> location.href = 'index.html', 2000); // volta à página inicial
+      } else {
+        msg.className = 'msg error';
+        msg.innerText = json.message;
+      }
+    });
+  </script>
+</body>
+</html>
