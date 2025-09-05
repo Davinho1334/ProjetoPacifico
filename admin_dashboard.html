@@ -100,7 +100,8 @@
           const id = a.dataset.id;
           const st = allStudents.find(x=>x.id == id);
           if(st){
-            alert(`Detalhes do aluno:\n\nNome: ${st.nome}\nCPF: ${st.cpf}\nRA: ${st.ra || '-'}\nCurso: ${st.curso}\nTurno: ${st.turno}\nSérie: ${st.serie}\nStatus: ${st.status}`);
+            location.href = `aluno_dashboard.html?id=${st.id}`;
+
           }
         });
       });
