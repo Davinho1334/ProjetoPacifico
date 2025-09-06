@@ -20,3 +20,38 @@ function validarCPF(cpf) {
   if (resto !== parseInt(cpf[10])) return false;
   return true;
 }
+
+// salvar edição de aluno
+async function salvarAluno(id){
+    const aluno = {
+        id: parseInt(id),
+        ra: document.getElementById("ra").value.trim(),
+        curso: document.getElementById("curso").value.trim(),
+        turno: document.getElementById("turno").value.trim(),
+        serie: document.getElementById("serie").value.trim(),
+        status: document.getElementById("status").value.trim(),
+        cargaSemanal: parseInt(document.getElementById("cargaSemanal").value) || 0,
+        bolsa: parseFloat(document.getElementById("bolsa").value) || 0
+    };
+
+    try{
+        const res = await fetch("php/edit_student.php", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            credentials: 'same-origin', // envia cookie de sessão
+            body: JSON.stringify(aluno)
+        });
+        const json = await res.json();
+        console.log(json);
+        if(json.success){
+            alert("Aluno atualizado com sucesso!");
+            fetchStudents(); // recarrega tabela
+        } else if(res.status === 401){
+            alert("Erro: não autorizado. Faça login novamente.");
+        } else {
+            alert("Erro: " + (json.error || "não foi possível salvar"));
+        }
+    } catch(err){
+        alert("Erro de rede: " + err.message);
+    }
+}

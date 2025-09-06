@@ -26,22 +26,29 @@
   </main>
 
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async e=>{
-      e.preventDefault();
-      const f = e.target;
-      const data = new FormData(f);
-      const res = await fetch('php/admin_login.php', { method:'POST', body: data });
-      const json = await res.json();
-      const msg = document.getElementById('msg');
-      if(json.success){
-        // salvar simples session token (para demo) e redirecionar
-        sessionStorage.setItem('adminToken', json.token);
-        location.href = 'admin_dashboard.html';
-      } else {
-        msg.className = 'msg error';
-        msg.innerText = json.message;
-      }
-    });
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  const data = new FormData(f);
+
+  const res = await fetch('php/admin_login.php', {
+    method: 'POST',
+    body: data,
+    credentials: 'same-origin' // envia cookies da sessão do PHP
+  });
+
+  const json = await res.json();
+  const msg = document.getElementById('msg');
+
+  if(json.success){
+    // redireciona direto, sem token extra
+    location.href = 'admin_dashboard.html';
+  } else {
+    msg.className = 'msg error';
+    msg.innerText = json.message;
+  }
+});
+
   </script>
 </body>
 </html>
