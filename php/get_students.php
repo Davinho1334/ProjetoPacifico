@@ -1,6 +1,14 @@
 <?php
+session_start();
 header('Content-Type: application/json; charset=utf-8');
-require 'db.php'; // espera variável $mysqli (mysqli object)
+require 'db.php';
+
+// PROTEGE ENDPOINT
+if(!isset($_SESSION['admin_id'])){
+    http_response_code(401);
+    echo json_encode(['success'=>false,'message'=>'Não autorizado']);
+    exit;
+}
 
 // se receber id -> retorna objeto
 if(isset($_GET['id']) && $_GET['id'] !== ''){

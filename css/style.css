@@ -1,14 +1,14 @@
 :root {
-  --primary: #003366;        /* Azul escuro institucional */
-  --primary-light: #0055a5;  /* Azul mais claro para hover */
-  --secondary: #006f3c;      /* Verde institucional */
-  --accent: #ffd600;         /* Amarelo de destaque */
-  --background: #f5f7fa;     /* Fundo geral */
-  --surface: #ffffff;        /* Fundo de cards, formulários e tabelas */
-  --text: #212121;           /* Texto principal */
-  --text-muted: #616161;     /* Texto secundário */
-  --danger: #d32f2f;         /* Erros */
-  --success: #388e3c;        /* Sucesso */
+  --primary: #003366;
+  --primary-light: #0055a5;
+  --secondary: #006f3c;
+  --accent: #ffd600;
+  --background: #f5f7fa;
+  --surface: #ffffff;
+  --text: #212121;
+  --text-muted: #616161;
+  --danger: #d32f2f;
+  --success: #388e3c;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -25,13 +25,11 @@ body {
   line-height: 1.6;
 }
 
-/* ===== Títulos ===== */
 h1, h2 {
   margin-bottom: 16px;
   color: var(--primary);
 }
 
-/* ===== Layouts principais ===== */
 .centered {
   max-width: 900px;
   margin: 80px auto;
@@ -50,6 +48,17 @@ h1, h2 {
 }
 
 /* ===== Botões ===== */
+
+.btn,
+.btn-outline,
+.btn-small,
+.btn-pdf,
+.btn-excel {
+  display: inline-block;
+  visibility: visible;
+  opacity: 1;
+}
+
 .btn {
   background: var(--primary);
   color: white;
@@ -70,14 +79,29 @@ h1, h2 {
   transform: scale(0.97);
 }
 .btn-outline {
+  border: 1.5px solid var(--primary);
   background: transparent;
-  border: 2px solid var(--primary);
   color: var(--primary);
 }
 .btn-outline:hover {
   background: var(--primary-light);
-  color: white;
+  color: #fff;
 }
+.btn-small {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 5px;
+}
+.btn-pdf {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-excel {
+  background: var(--secondary);
+  color: #fff;
+}
+.btn-pdf:hover { background: #b71c1c; }
+.btn-excel:hover { background: #2e7d32; }
 .logout-btn {
   background: var(--danger);
   background-color: white;
@@ -96,6 +120,21 @@ h1, h2 {
 .topbar h1 {
   font-size: 22px;
 }
+
+/* Torna botões do topo sempre visíveis */
+.topbar .btn,
+.topbar .btn-outline,
+.topbar .btn-small {
+  color: var(--primary) !important;
+  background: #fff !important;
+  border-color: var(--primary) !important;
+  box-shadow: none !important;
+}
+.topbar .btn-outline:hover {
+  background: var(--primary-light) !important;
+  color: #fff !important;
+}
+
 
 /* ===== Formulários ===== */
 label {
@@ -123,7 +162,8 @@ input:focus, select:focus {
 
 .actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
   align-items: center;
   margin-top: 18px;
 }
@@ -151,6 +191,29 @@ input:focus, select:focus {
   max-width: 1100px;
   margin: 24px auto;
   padding: 16px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 1rem;
+}
+.modal-content {
+  background: var(--surface);
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  animation: fadeIn 0.3s ease;
+  max-height: 90vh; 
+  overflow-y: auto;
 }
 
 .dashboard-cards {
