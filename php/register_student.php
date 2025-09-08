@@ -4,12 +4,17 @@ header('Content-Type: application/json');
 require 'db.php';
 
 $nome = $_POST['nome'] ?? '';
-$cpf = preg_replace('/\D/', '', $_POST['cpf'] ?? ''); // normaliza
+$cpf = preg_replace('/\D/','', $_POST['cpf'] ?? '');
 $ra = $_POST['ra'] ?? null;
 $ano = $_POST['ano_nascimento'] ?? null;
 $curso = $_POST['curso'] ?? '';
 $turno = $_POST['turno'] ?? '';
 $serie = $_POST['serie'] ?? '1º';
+$contato = $_POST['contato_aluno'] ?? '';
+$idade = $_POST['idade'] ?? null;
+$relatorio = $_POST['relatorio'] ?? '';
+$observacao = $_POST['observacao'] ?? '';
+$empresa_id = $_POST['empresa_id'] ?? null;
 
 if(!$nome || !$cpf || !$curso){
   echo json_encode(['success'=>false,'message'=>'Campos obrigatórios ausentes.']);
@@ -27,7 +32,7 @@ if($stmt->num_rows > 0){
 }
 $stmt->close();
 
-// gerar RA se vazio (prefixo RA + timestamp)
+// gerar RA se vazio
 if(!$ra){
   $ra = 'RA'.time();
 }
@@ -35,10 +40,11 @@ if(!$ra){
 // inserir
 $ins = $mysqli->prepare("
   INSERT INTO alunos 
-  (ra, nome, cpf, ano_nascimento, curso, turno, serie, status) 
-  VALUES (?, ?, ?, ?, ?, ?, ?, 'Em andamento')
+  (ra, nome, cpf, ano_nascimento, curso, turno, serie, status, contato_aluno, idade, relatorio, observacao, empresa_id) 
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'Em andamento', ?, ?, ?, ?, ?)
 ");
-$ins->bind_param('ssissss', $ra, $nome, $cpf, $ano, $curso, $turno, $serie);
+$ins->bind_param('ssisssssis si', $ra, $nome, $cpf, $ano, $curso, $turno, $serie,
+                 $contato, $idade, $relatorio, $observacao, $empresa_id);
 
 if($ins->execute()){
   echo json_encode(['success'=>true,'message'=>'Cadastro realizado com sucesso!']);
