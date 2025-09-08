@@ -21,9 +21,8 @@ if(!$id){
 
 $allowed = [
     'ra','curso','turno','serie','status','cargaSemanal','bolsa',
-    'contato_aluno','idade','relatorio','observacao',
-    'empresa_id','inicio_trabalho','fim_trabalho','renovou_contrato',
-    'tipo_contrato' // Novo campo permitido
+    'contato_aluno','idade','relatorio','observacao','empresa_id',
+    'inicio_trabalho','fim_trabalho','renovou_contrato'
 ];
 
 $fields = [];
@@ -33,14 +32,22 @@ $types = '';
 foreach($allowed as $f){
     if(array_key_exists($f, $data)){
         $fields[] = "$f = ?";
-        $params[] = $data[$f];
-
-        if($f==='cargaSemanal') $types .= 'i';
-        else if($f==='bolsa') $types .= 'd';
-        else if($f==='idade') $types .= 'i';
-        else if($f==='empresa_id') $types .= 'i';
-        else if($f==='renovou_contrato') $types .= 'i';
-        else $types .= 's';
+        if($f==='cargaSemanal'){
+            $params[] = (int)$data[$f];
+            $types .= 'i';
+        }
+        else if($f==='bolsa'){
+            $params[] = (float)$data[$f];
+            $types .= 'd';
+        }
+        else if(in_array($f, ['idade','empresa_id','renovou_contrato'])){
+            $params[] = (int)$data[$f];
+            $types .= 'i';
+        }
+        else {
+            $params[] = $data[$f];
+            $types .= 's';
+        }
     }
 }
 
@@ -51,7 +58,7 @@ if(empty($fields)){
 
 $sql = "UPDATE alunos SET ".implode(', ', $fields)." WHERE id = ?";
 $params[] = $id;
-$types.='i';
+$types .= 'i';
 
 $stmt = $mysqli->prepare($sql);
 if(!$stmt){
@@ -60,6 +67,7 @@ if(!$stmt){
 }
 
 // bind_param dinâmico
+$bind_names = [];
 $bind_names[] = $types;
 for($i=0; $i<count($params); $i++){
     $bind_name = 'bind'.$i;
@@ -71,9 +79,9 @@ call_user_func_array([$stmt,'bind_param'],$bind_names);
 $ok = $stmt->execute();
 if($ok){
     if($stmt->affected_rows>0){
-        echo json_encode(['success'=>true]);
+        echo json_encode(['success'=>true, 'message'=>'Dados atualizados com sucesso']);
     } else {
-        echo json_encode(['success'=>false,'error'=>'Nenhuma linha alterada (id pode não existir ou dados iguais)']);
+        echo json_encode(['success'=>true, 'message'=>'Nenhuma alteração realizada']);
     }
 }else{
     echo json_encode(['success'=>false,'error'=>$stmt->error, 'sql'=>$sql]);
