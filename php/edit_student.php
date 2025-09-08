@@ -22,7 +22,8 @@ if(!$id){
 $allowed = [
     'ra','curso','turno','serie','status','cargaSemanal','bolsa',
     'contato_aluno','idade','relatorio','observacao',
-    'empresa_id','inicio_trabalho','fim_trabalho','renovou_contrato'
+    'empresa_id','inicio_trabalho','fim_trabalho','renovou_contrato',
+    'tipo_contrato' // Novo campo permitido
 ];
 
 $fields = [];

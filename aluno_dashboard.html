@@ -124,7 +124,6 @@
           <label>Bolsa (R$)<br>
             <input name="bolsa" id="edit_bolsa" type="number" step="0.01" min="0"/>
           </label>
-
           <!-- SELECT dinâmico de empresas (envia empresa_id) -->
           <label>Empresa<br>
             <select name="empresa_id" id="edit_empresa">
@@ -529,6 +528,19 @@
       }
     }
   })();
+  async function atualizarEmpresas() {
+  try {
+    allCompanies = await fetchCompanies();
+    companiesById = {};
+    allCompanies.forEach(c => {
+      companiesById[String(c.id)] = c.nome || c.razao_social || c.name || '';
+    });
+    buildCompanySelect();
+  } catch(e) {
+    console.warn('Erro ao atualizar empresas:', e);
+  }
+}
+
   </script>
 
   <style>

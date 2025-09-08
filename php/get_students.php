@@ -13,7 +13,7 @@ if(!isset($_SESSION['admin_id'])){
 // se receber id -> retorna objeto
 if(isset($_GET['id']) && $_GET['id'] !== ''){
   $id = intval($_GET['id']);
-  $stmt = $mysqli->prepare("SELECT id, ra, nome, cpf, ano_nascimento, curso, turno, serie, status, cargaSemanal, bolsa, escola, criado_em FROM alunos WHERE id = ?");
+  $stmt = $mysqli->prepare("SELECT id, ra, nome, cpf, ano_nascimento, curso, turno, serie, status, cargaSemanal, contato_aluno, idade, bolsa, escola, criado_em FROM alunos WHERE id = ?");
   $stmt->bind_param("i", $id);
   $stmt->execute();
   $res = $stmt->get_result();

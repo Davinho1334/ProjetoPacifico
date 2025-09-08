@@ -4,21 +4,12 @@ header('Content-Type: application/json');
 require 'db.php';
 
 $nome = $_POST['nome'] ?? '';
-$cpf = preg_replace('/\D/','', $_POST['cpf'] ?? '');
+$cpf = preg_replace('/\D/', '', $_POST['cpf'] ?? ''); // normaliza
 $ra = $_POST['ra'] ?? null;
 $ano = $_POST['ano_nascimento'] ?? null;
 $curso = $_POST['curso'] ?? '';
 $turno = $_POST['turno'] ?? '';
 $serie = $_POST['serie'] ?? '1º';
-$contato = $_POST['contato_aluno'] ?? null;
-$idade = $_POST['idade'] ?? null;
-$relatorio = $_POST['relatorio'] ?? null;
-$observacao = $_POST['observacao'] ?? null;
-$empresa_id = $_POST['empresa_id'] ?? null;
-$inicio = $_POST['inicio_trabalho'] ?? null;
-$fim = $_POST['fim_trabalho'] ?? null;
-$renovou = $_POST['renovou_contrato'] ?? 0;
-
 
 if(!$nome || !$cpf || !$curso){
   echo json_encode(['success'=>false,'message'=>'Campos obrigatórios ausentes.']);
@@ -42,8 +33,13 @@ if(!$ra){
 }
 
 // inserir
-$ins = $mysqli->prepare("INSERT INTO alunos (ra, nome, cpf, ano_nascimento, curso, turno, serie, status, contato_aluno, idade, relatorio, observacao, empresa_id, inicio_trabalho, fim_trabalho, renovou_contrato) VALUES (?, ?, ?, ?, ?, ?, ?, 'Em andamento', ?, ?, ?, ?, ?, ?, ?, ?)");
-$ins->bind_param('ssisssssississi', $ra, $nome, $cpf, $ano, $curso, $turno, $serie, $contato, $idade, $relatorio, $observacao, $empresa_id, $inicio, $fim, $renovou);
+$ins = $mysqli->prepare("
+  INSERT INTO alunos 
+  (ra, nome, cpf, ano_nascimento, curso, turno, serie, status) 
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'Em andamento')
+");
+$ins->bind_param('ssissss', $ra, $nome, $cpf, $ano, $curso, $turno, $serie);
+
 if($ins->execute()){
   echo json_encode(['success'=>true,'message'=>'Cadastro realizado com sucesso!']);
 } else {
@@ -51,5 +47,4 @@ if($ins->execute()){
 }
 $ins->close();
 $mysqli->close();
-
 ?>
