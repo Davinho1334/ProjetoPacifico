@@ -25,7 +25,7 @@ if(isset($_GET['id']) && $_GET['id'] !== ''){
 }
 
 // sem id -> retorna array
-$res = $mysqli->query("SELECT id, ra, nome, cpf, ano_nascimento, curso, turno, serie, status, cargaSemanal, bolsa, escola, criado_em FROM alunos ORDER BY criado_em DESC");
+$res = $mysqli->query("SELECT id, ra, nome, cpf, ano_nascimento, curso, turno, serie, status, cargaSemanal, bolsa, escola, contato_aluno, idade, relatorio, observacao, empresa_id, inicio_trabalho, fim_trabalho, renovou_contrato, criado_em FROM alunos ORDER BY criado_em DESC");
 $data = [];
 if($res){
   while($row = $res->fetch_assoc()){

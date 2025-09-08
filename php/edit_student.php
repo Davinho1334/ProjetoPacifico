@@ -19,7 +19,11 @@ if(!$id){
     exit;
 }
 
-$allowed = ['ra','curso','turno','serie','status','cargaSemanal','bolsa'];
+$allowed = [
+    'ra','curso','turno','serie','status','cargaSemanal','bolsa',
+    'contato_aluno','idade','relatorio','observacao',
+    'empresa_id','inicio_trabalho','fim_trabalho','renovou_contrato'
+];
 
 $fields = [];
 $params = [];
@@ -29,9 +33,13 @@ foreach($allowed as $f){
     if(array_key_exists($f, $data)){
         $fields[] = "$f = ?";
         $params[] = $data[$f];
-        if($f==='cargaSemanal') $types.='i';
-        else if($f==='bolsa') $types.='d';
-        else $types.='s';
+
+        if($f==='cargaSemanal') $types .= 'i';
+        else if($f==='bolsa') $types .= 'd';
+        else if($f==='idade') $types .= 'i';
+        else if($f==='empresa_id') $types .= 'i';
+        else if($f==='renovou_contrato') $types .= 'i';
+        else $types .= 's';
     }
 }
 

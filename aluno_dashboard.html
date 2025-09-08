@@ -52,8 +52,8 @@
     <section id="acoesRapidas" style="display:none;">
       <div class="card" style="flex:1; min-width:280px;">
         <h3>Ações Rápidas</h3>
-        <button class="btn btn-outline" onclick="window.open('php/export_pdf.php?id='+idParam)">Gerar PDF</button>
-        <button class="btn btn-outline" onclick="window.open('php/export_excel.php?id='+idParam)">Exportar Excel</button>
+        <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
+        <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
         <button class="btn btn-outline" onclick="registrarFrequencia(idParam)">Registrar Frequência</button>
       </div>
     </section>
@@ -124,10 +124,14 @@
           <label>Bolsa (R$)<br>
             <input name="bolsa" id="edit_bolsa" type="number" step="0.01" min="0"/>
           </label>
-          <!-- Novos campos -->
+
+          <!-- SELECT dinâmico de empresas (envia empresa_id) -->
           <label>Empresa<br>
-            <input name="empresa" id="edit_empresa" />
+            <select name="empresa_id" id="edit_empresa">
+              <option value="">Selecione...</option>
+            </select>
           </label>
+
           <label>Início Trabalho<br>
             <input name="inicio_trabalho" id="edit_inicio" type="date" />
           </label>
@@ -140,6 +144,7 @@
               <option value="1">Sim</option>
             </select>
           </label>
+
           <div style="margin-top:0.75rem;">
             <button type="button" id="saveEdit" class="btn">Salvar</button>
             <button type="button" id="cancelEdit" class="btn btn-outline">Cancelar</button>
@@ -150,38 +155,43 @@
   </main>
 
   <script>
-  // ---------- helpers ----------
+  // helpers
   function $qs(sel){ return document.querySelector(sel); }
   function $qsa(sel){ return Array.from(document.querySelectorAll(sel)); }
 
-  // pegar params
+  // params e elementos
   const params = new URLSearchParams(location.search);
-  const idParam = params.get('id'); // se existir => visão individual
+  const idParam = params.get('id');
   const pageTitle = $qs('#pageTitle');
   const infoAluno = $qs('#infoAluno');
   const visaoGeral = $qs('#visaoGeral');
   const controlsSection = $qs('#controlsSection');
-  const acoesRapidas = document.getElementById('acoesRapidas');
+  const acoesRapidas = $qs('#acoesRapidas');
 
-  // charts
-  let chartStatus=null, chartCurso=null, chartBolsa=null, chartCarga=null;
-
-  // dados em memória
+  // charts e dados
+  let chartStatus=null, chartCurso=null, chartBolsa=null;
   let allStudents = [];
+  let allCompanies = [];
+  let companiesById = {};
 
-  // ---------- fetch dos dados ----------
+  // fetch com credenciais (necessário se o PHP exige sessão)
   async function fetchAllStudents(){
-    const res = await fetch('php/get_students.php');
+    const res = await fetch('php/get_students.php', { credentials: 'same-origin' });
     const json = await res.json();
-    if(!json.success){ throw new Error('Erro ao buscar alunos'); }
+    if(!json.success) throw new Error(json.message || 'Erro ao buscar alunos');
     return json.data;
   }
-
   async function fetchStudentById(id){
-    const res = await fetch(`php/get_students.php?id=${encodeURIComponent(id)}`);
+    const res = await fetch(`php/get_students.php?id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
     const json = await res.json();
-    if(!json.success){ throw new Error('Erro ao buscar aluno'); }
-    return json.data; // objeto único
+    if(!json.success) throw new Error(json.message || 'Erro ao buscar aluno');
+    return json.data;
+  }
+  async function fetchCompanies(){
+    const res = await fetch('php/get_companies.php', { credentials: 'same-origin' });
+    const json = await res.json();
+    if(!json.success) throw new Error(json.message || 'Erro ao buscar empresas');
+    return json.data;
   }
 
   // ---------- visão individual ----------
@@ -196,6 +206,12 @@
       const aluno = await fetchStudentById(id);
       if(!aluno){ infoAluno.innerHTML = '<div class="card">Aluno não encontrado.</div>'; return; }
 
+      // tenta resolver nome da empresa (pode vir empresa_id ou empresa)
+      let empresaNome = '-';
+      if(aluno.empresa_nome) empresaNome = aluno.empresa_nome;
+      else if(aluno.empresa) empresaNome = aluno.empresa;
+      else if(aluno.empresa_id && companiesById[String(aluno.empresa_id)]) empresaNome = companiesById[String(aluno.empresa_id)];
+
       infoAluno.innerHTML = `
         <div class="card"><strong>Nome:</strong> ${aluno.nome}</div>
         <div class="card"><strong>CPF:</strong> ${aluno.cpf}</div>
@@ -206,45 +222,33 @@
         <div class="card"><strong>Status:</strong> ${aluno.status || '-'}</div>
         <div class="card"><strong>Carga Semanal:</strong> ${aluno.cargaSemanal || 0}h</div>
         <div class="card"><strong>Bolsa:</strong> R$ ${aluno.bolsa ? Number(aluno.bolsa).toFixed(2) : '0.00'}</div>
-        <div class="card"><strong>Empresa:</strong> ${aluno.empresa || '-'}</div>
+        <div class="card"><strong>Empresa:</strong> ${empresaNome}</div>
         <div class="card"><strong>Início Trabalho:</strong> ${aluno.inicio_trabalho || '-'}</div>
         <div class="card"><strong>Fim Trabalho:</strong> ${aluno.fim_trabalho || '-'}</div>
         <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
       `;
 
-      // gráficos: carga e status
+      // gráficos individuais
       $qsa('.individual-canvas').forEach(n => n.remove());
 
-      // carga
       const c1 = document.createElement('canvas');
-      c1.classList.add('individual-canvas');
-      c1.height = 140;
-      const cardCarga = document.createElement('div');
-      cardCarga.className = 'card';
-      cardCarga.innerHTML = `<h3>Carga Semanal (horas)</h3>`;
-      cardCarga.appendChild(c1);
-      infoAluno.appendChild(cardCarga);
+      c1.classList.add('individual-canvas'); c1.height = 140;
+      const cardCarga = document.createElement('div'); cardCarga.className = 'card';
+      cardCarga.innerHTML = `<h3>Carga Semanal (horas)</h3>`; cardCarga.appendChild(c1); infoAluno.appendChild(cardCarga);
 
-      // status
       const c2 = document.createElement('canvas');
-      c2.classList.add('individual-canvas');
-      c2.height = 140;
-      const cardStatus = document.createElement('div');
-      cardStatus.className = 'card';
-      cardStatus.innerHTML = `<h3>Status</h3>`;
-      cardStatus.appendChild(c2);
-      infoAluno.appendChild(cardStatus);
+      c2.classList.add('individual-canvas'); c2.height = 140;
+      const cardStatus = document.createElement('div'); cardStatus.className = 'card';
+      cardStatus.innerHTML = `<h3>Status</h3>`; cardStatus.appendChild(c2); infoAluno.appendChild(cardStatus);
 
-      // Chart carga
-      if(window._chartCarga) { window._chartCarga.destroy(); }
+      if(window._chartCarga) window._chartCarga.destroy();
       window._chartCarga = new Chart(c1, {
         type: 'bar',
         data: { labels: ['Carga semanal'], datasets: [{ label:'Horas', data: [aluno.cargaSemanal || 0] }]},
         options:{ responsive:true, plugins:{legend:{display:false}}}
       });
 
-      // Chart status pie
-      if(window._chartStatus) { window._chartStatus.destroy(); }
+      if(window._chartStatus) window._chartStatus.destroy();
       window._chartStatus = new Chart(c2, {
         type:'pie',
         data:{ labels:['Ativo','Em processo','Disponível'],
@@ -256,8 +260,13 @@
         options:{ responsive:true }
       });
 
-      // Exibe ações rápidas
-      if(acoesRapidas) acoesRapidas.style.display = 'block';
+      // ações rápidas
+      if(acoesRapidas) {
+        acoesRapidas.style.display = 'block';
+        // configurar botões de exportar com ID
+        $qs('#btnPdf').onclick = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
+        $qs('#btnExcel').onclick = () => window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank');
+      }
 
     } catch(err){
       infoAluno.innerHTML = `<div class="card">Erro: ${err.message}</div>`;
@@ -265,7 +274,7 @@
     }
   }
 
-  // ---------- visão geral ----------
+  // ---------- visão geral (filtros, tabela, gráficos) ----------
   function uniqueValues(arr, key){
     return Array.from(new Set(arr.map(x => x[key]).filter(Boolean))).sort();
   }
@@ -306,6 +315,7 @@
         </td>
       </tr>
     `).join('');
+    // listeners
     $qsa('.btn-view').forEach(b => b.addEventListener('click', e => {
       const id = e.currentTarget.dataset.id;
       location.href = `aluno_dashboard.html?id=${id}`;
@@ -355,6 +365,21 @@
     renderCharts(filtered);
   }
 
+  // ---------- Empresas: montar select ----------
+  function buildCompanySelect(selectedId = ""){
+    const sel = $qs('#edit_empresa');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">Selecione...</option>';
+    allCompanies.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      // usa c.nome (verifique get_companies.php)
+      opt.textContent = c.nome || c.razao_social || c.name || `Empresa ${c.id}`;
+      if(String(c.id) === String(selectedId)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
   // ---------- edição (modal) ----------
   function openEditModal(id){
     const st = allStudents.find(x => String(x.id) === String(id));
@@ -370,16 +395,21 @@
     $qs('#edit_status').value = st.status || 'Disponível';
     $qs('#edit_carga').value = st.cargaSemanal || 0;
     $qs('#edit_bolsa').value = st.bolsa || 0;
-    $qs('#edit_empresa').value = st.empresa || '';
+
+    // monta select e marca o id correto
+    const empresaId = st.empresa_id || st.empresa || '';
+    buildCompanySelect(empresaId);
+
     $qs('#edit_inicio').value = st.inicio_trabalho || '';
     $qs('#edit_fim').value = st.fim_trabalho || '';
-    $qs('#edit_renovou').value = st.renovou_contrato || '0';
+    $qs('#edit_renovou').value = (st.renovou_contrato != null) ? st.renovou_contrato : '0';
 
     $qs('#editModal').style.display = 'block';
   }
   function closeEditModal(){ $qs('#editModal').style.display = 'none'; }
 
   async function saveEdit(){
+    const empresaVal = $qs('#edit_empresa').value;
     const data = {
       id: $qs('#edit_id').value,
       ra: $qs('#edit_ra').value.trim(),
@@ -387,44 +417,58 @@
       turno: $qs('#edit_turno').value.trim(),
       serie: $qs('#edit_serie').value.trim(),
       status: $qs('#edit_status').value,
-      cargaSemanal: $qs('#edit_carga').value || 0,
-      bolsa: $qs('#edit_bolsa').value || 0,
-      empresa: $qs('#edit_empresa').value.trim(),
-      inicio_trabalho: $qs('#edit_inicio').value,
-      fim_trabalho: $qs('#edit_fim').value,
-      renovou_contrato: $qs('#edit_renovou').value
+      cargaSemanal: parseInt($qs('#edit_carga').value) || 0,
+      bolsa: parseFloat($qs('#edit_bolsa').value) || 0,
+      empresa_id: empresaVal ? parseInt(empresaVal) : null, // envia empresa_id (int) ou null
+      inicio_trabalho: $qs('#edit_inicio').value || null,
+      fim_trabalho: $qs('#edit_fim').value || null,
+      renovou_contrato: parseInt($qs('#edit_renovou').value) || 0
     };
     try {
       const res = await fetch('php/edit_student.php', {
         method:'POST',
         headers: {'Content-Type':'application/json'},
+        credentials: 'same-origin',
         body: JSON.stringify(data)
       });
       const json = await res.json();
       if(json.success){
+        // atualiza memória local (simples)
         const idx = allStudents.findIndex(x=>String(x.id)===String(data.id));
-        if(idx>-1){
-          allStudents[idx] = {...allStudents[idx], ...data};
+        if(idx > -1){
+          // manter empresa_name atualizado
+          const empresaName = companiesById[String(data.empresa_id)] || (allStudents[idx].empresa || '');
+          allStudents[idx] = {...allStudents[idx], ...data, empresa: empresaName};
         }
         applyFilters();
         closeEditModal();
         alert('Atualizado com sucesso.');
       } else {
-        alert('Erro: ' + (json.error || 'não foi possível salvar'));
+        alert('Erro: ' + (json.error || json.message || 'não foi possível salvar'));
       }
     } catch(err){
       alert('Erro de rede: ' + err.message);
     }
   }
 
-  // ---------- ações rápidas ----------
+  // registrar frequência (placeholder)
   function registrarFrequencia(id){
     alert('Registrar frequência para aluno ID: ' + id);
-    // Implemente aqui a lógica de registro de frequência
   }
 
-  // ---------- inicialização ----------
+  // ---------- init ----------
   (async function init(){
+    // carrega empresas primeiro (para usar nos selects e nomes)
+    try {
+      allCompanies = await fetchCompanies();
+      companiesById = {};
+      allCompanies.forEach(c => { companiesById[String(c.id)] = c.nome || c.razao_social || c.name || ''; });
+    } catch(e){
+      console.warn('Não foi possível carregar empresas:', e);
+      allCompanies = [];
+      companiesById = {};
+    }
+
     if(idParam){
       pageTitle.textContent = 'Dashboard do Aluno';
       await renderIndividual(idParam);
@@ -436,18 +480,31 @@
       if(acoesRapidas) acoesRapidas.style.display = 'none';
 
       try {
-        allStudents = await fetchAllStudents();
-        allStudents = allStudents.map(s => ({
-          id: s.id, nome: s.nome, cpf: s.cpf, ra: s.ra || '',
-          curso: s.curso || '', turno: s.turno || '', serie: s.serie || '',
-          status: s.status || '', escola: s.escola || '',
-          cargaSemanal: Number(s.cargaSemanal || 0),
-          bolsa: Number(s.bolsa || 0),
-          empresa: s.empresa || '',
-          inicio_trabalho: s.inicio_trabalho || '',
-          fim_trabalho: s.fim_trabalho || '',
-          renovou_contrato: s.renovou_contrato || '0'
-        }));
+        const raw = await fetchAllStudents();
+        // normaliza lista e resolve nome da empresa usando companiesById
+        allStudents = raw.map(s => {
+          const empId = s.empresa_id ?? s.empresa ?? '';
+          const empName = (empId && companiesById[String(empId)]) ? companiesById[String(empId)] : (typeof s.empresa === 'string' ? s.empresa : '');
+          return {
+            id: s.id,
+            nome: s.nome,
+            cpf: s.cpf,
+            ra: s.ra || '',
+            curso: s.curso || '',
+            turno: s.turno || '',
+            serie: s.serie || '',
+            status: s.status || '',
+            escola: s.escola || '',
+            cargaSemanal: Number(s.cargaSemanal || 0),
+            bolsa: Number(s.bolsa || 0),
+            empresa_id: empId || '',
+            empresa: empName || '',
+            inicio_trabalho: s.inicio_trabalho || '',
+            fim_trabalho: s.fim_trabalho || '',
+            renovou_contrato: s.renovou_contrato ?? '0'
+          };
+        });
+
         buildFiltersUI(allStudents);
         renderTable(allStudents);
         renderCharts(allStudents);
