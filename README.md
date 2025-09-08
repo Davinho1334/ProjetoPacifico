@@ -22,9 +22,6 @@
 * **Login (Admin)** → **Dashboard Administrativo**: tabela, filtros, cards de status e ações (exportar PDF/Excel, abrir dashboard do aluno).
 * **Cadastro do Aluno**: formulário simples e validado.
 * **Dashboard do Aluno**: visão individual (cards + mini-gráficos) e visão geral (tabela + gráficos).
-
-> Dica: suba o projeto localmente e acesse `index.html` para navegar pelos fluxos.
-
 ---
 
 ## 🏗️ Arquitetura
@@ -48,9 +45,6 @@
 
   * `dompdf/dompdf` — geração de PDF
   * `phpoffice/phpspreadsheet` — planilhas Excel
-
-> Observação: os endpoints PHP acima são referenciados pelo front — implemente-os conforme o modelo abaixo ou adapte aos seus serviços.
-
 ---
 
 ## 🖥️ Linguagens utilizadas
