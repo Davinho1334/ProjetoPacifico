@@ -10,22 +10,37 @@
   <main class="form-container">
     <h2>Cadastrar Empresa</h2>
     <form id="empresaForm" action="php/register_company.php" method="POST">
-      <label>Nome da Empresa
-        <input required name="nome" type="text" />
+      <label>Nome
+        <input required name="razao_social" type="text" />
       </label>
+
       <label>CNPJ
         <input required name="cnpj" type="text" maxlength="18" />
       </label>
-      <label>Contato
-        <input name="contato" type="text" />
+
+      <label>Endereço
+        <input name="endereco" type="text" />
       </label>
+
+      <label>CEP
+        <input name="cep" type="text" maxlength="9" />
+      </label>
+
       <label>Telefone
         <input name="telefone" type="text" />
       </label>
 
+      <label>Tipo de Contrato
+        <select name="tipo_contrato" required>
+          <option value="Menor Aprendiz">Menor Aprendiz</option>
+          <option value="Jovem Aprendiz">Jovem Aprendiz</option>
+          <option value="Estágio">Estágio</option>
+        </select>
+      </label>
+
       <div class="actions">
         <button type="submit" class="btn">Salvar</button>
-        <a href="aluno_dashboard.html" class="btn btn-outline">Voltar</a>
+        <a href="admin_dashboard.html" class="btn btn-outline">Voltar</a>
       </div>
       <div id="msg" class="msg"></div>
     </form>

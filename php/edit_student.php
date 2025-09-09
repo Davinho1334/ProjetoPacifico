@@ -20,7 +20,7 @@ if(!$id){
 $allowed = [
     'ra','curso','turno','serie','status','cargaSemanal','bolsa',
     'contato_aluno','idade','relatorio','observacao','empresa_id',
-    'inicio_trabalho','fim_trabalho','renovou_contrato'
+    'inicio_trabalho','fim_trabalho','renovou_contrato','tipo_contrato' // <-- adicionado
 ];
 
 $fields = [];
@@ -29,13 +29,10 @@ $types = '';
 
 foreach($allowed as $f){
     if(array_key_exists($f, $data)){
-        // se empresa_id vazio — interpretar como interesse de deixar null? aqui vamos ignorar vazio (não atualiza)
         if($f === 'empresa_id'){
             if($data[$f] === '' || $data[$f] === null){
-                // se quiser definir NULL explicitamente, troque a lógica; por enquanto, ignora campo vazio
-                continue;
+                continue; // ignora se vazio
             }
-            // valida existência da empresa
             $empId = intval($data[$f]);
             $chk = $mysqli->prepare("SELECT id FROM empresas WHERE id = ?");
             if(!$chk){ echo json_encode(['success'=>false,'error'=>'Erro DB: '.$mysqli->error]); exit; }
@@ -43,7 +40,9 @@ foreach($allowed as $f){
             $chk->execute();
             $chk->store_result();
             if($chk->num_rows === 0){
-                echo json_encode(['success'=>false,'error'=>'Empresa inválida (id não encontrada)']); $chk->close(); exit;
+                echo json_encode(['success'=>false,'error'=>'Empresa inválida (id não encontrada)']); 
+                $chk->close(); 
+                exit;
             }
             $chk->close();
 
@@ -99,3 +98,4 @@ if($ok){
 
 $stmt->close();
 $mysqli->close();
+?>

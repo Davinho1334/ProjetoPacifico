@@ -10,7 +10,10 @@ if(!isset($_SESSION['admin_id'])){
     exit;
 }
 
-$sql = "SELECT id, nome, cnpj, contato, telefone, created_at FROM companies ORDER BY nome ASC";
+// Buscar empresas
+$sql = "SELECT id, razao_social, cnpj, endereco, cep, telefone, tipo_contrato, criado_em
+        FROM empresas
+        ORDER BY razao_social ASC";
 $res = $mysqli->query($sql);
 
 $companies = [];

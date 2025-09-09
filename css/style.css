@@ -193,6 +193,16 @@ input:focus, select:focus {
   padding: 16px;
 }
 
+#caixinha {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  border-radius: 10px;
+}
+
 .modal {
   position: fixed;
   inset: 0;
