@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cadastro de Empresas</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="form-container">
+    <h2>Cadastrar Empresa</h2>
+    <form id="empresaForm" action="php/register_company.php" method="POST">
+      <label>Nome da Empresa
+        <input required name="nome" type="text" />
+      </label>
+      <label>CNPJ
+        <input required name="cnpj" type="text" maxlength="18" />
+      </label>
+      <label>Contato
+        <input name="contato" type="text" />
+      </label>
+      <label>Telefone
+        <input name="telefone" type="text" />
+      </label>
+
+      <div class="actions">
+        <button type="submit" class="btn">Salvar</button>
+        <a href="aluno_dashboard.html" class="btn btn-outline">Voltar</a>
+      </div>
+      <div id="msg" class="msg"></div>
+    </form>
+  </main>
+
+  <script>
+    document.getElementById('empresaForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const f = e.target;
+      const data = new FormData(f);
+      const res = await fetch('php/register_company.php',{method:'POST',body:data});
+      const json = await res.json();
+      const msg = document.getElementById('msg');
+      if(json.success){
+        msg.className='msg success';
+        msg.innerText=json.message;
+        f.reset();
+      } else {
+        msg.className='msg error';
+        msg.innerText=json.message;
+      }
+    });
+  </script>
+</body>
+</html>

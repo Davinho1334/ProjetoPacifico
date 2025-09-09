@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meu Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Topo -->
+  <header class="topbar">
+    <h1>Meu Painel</h1>
+    <div>
+      <a href="index.html" class="btn btn-outline">Sair</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Informações do aluno -->
+    <section id="infoAluno" class="dashboard-cards">
+      <div class="card">Carregando...</div>
+    </section>
+
+    <!-- Gráficos -->
+    <section style="margin-top:2rem;" id="graficosAluno">
+      <div class="dashboard-cards" style="gap:1rem;">
+        <div class="card" style="flex:1; min-width:280px;">
+          <h3>Carga Semanal</h3>
+          <canvas id="chartCarga" height="160"></canvas>
+        </div>
+        <div class="card" style="flex:1; min-width:280px;">
+          <h3>Status</h3>
+          <canvas id="chartStatus" height="160"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Pega ID do aluno da URL
+    const params = new URLSearchParams(location.search);
+    const alunoId = params.get('id');
+    const infoAluno = document.getElementById('infoAluno');
+
+    // Busca dados do aluno específico
+    async function fetchAluno(id){
+      const res = await fetch(`php/get_students.php?id=${encodeURIComponent(id)}`);
+      const json = await res.json();
+      if(!json.success) throw new Error("Erro ao buscar aluno");
+      return json.data;
+    }
+
+    // Renderiza informações e gráficos
+    async function renderAluno(){
+      try {
+        const aluno = await fetchAluno(alunoId);
+        if(!aluno){
+          infoAluno.innerHTML = '<div class="card">Aluno não encontrado.</div>';
+          return;
+        }
+
+        // Cards de informações pessoais
+        infoAluno.innerHTML = `
+          <div class="card"><strong>Nome:</strong> ${aluno.nome}</div>
+          <div class="card"><strong>CPF:</strong> ${aluno.cpf}</div>
+          <div class="card"><strong>RA:</strong> ${aluno.ra || '-'}</div>
+          <div class="card"><strong>Curso:</strong> ${aluno.curso || '-'}</div>
+          <div class="card"><strong>Turno:</strong> ${aluno.turno || '-'}</div>
+          <div class="card"><strong>Série:</strong> ${aluno.serie || '-'}</div>
+          <div class="card"><strong>Status:</strong> ${aluno.status || '-'}</div>
+          <div class="card"><strong>Carga Semanal:</strong> ${aluno.cargaSemanal || 0}h</div>
+          <div class="card"><strong>Bolsa:</strong> R$ ${aluno.bolsa ? Number(aluno.bolsa).toFixed(2) : '0.00'}</div>
+        `;
+
+        // Gráficos
+        renderGraficos(aluno);
+
+      } catch(err){
+        infoAluno.innerHTML = `<div class="card">Erro: ${err.message}</div>`;
+      }
+    }
+
+    function renderGraficos(aluno){
+      // Gráfico de carga semanal
+      const ctxCarga = document.getElementById('chartCarga').getContext('2d');
+      new Chart(ctxCarga, {
+        type: 'bar',
+        data: {
+          labels: ['Carga Semanal'],
+          datasets: [{ label: 'Horas', data: [aluno.cargaSemanal || 0] }]
+        },
+        options: { responsive: true, plugins: { legend: { display:false } } }
+      });
+
+      // Gráfico de status (mostra qual status o aluno tem)
+      const ctxStatus = document.getElementById('chartStatus').getContext('2d');
+      new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+          labels: ['Ativo', 'Em andamento', 'Encerrado', 'Disponível'],
+          datasets: [{
+            data: [
+              aluno.status === 'Ativo' ? 1 : 0,
+              aluno.status === 'Em andamento' ? 1 : 0,
+              aluno.status === 'Encerrado' ? 1 : 0,
+              aluno.status === 'Disponível' ? 1 : 0
+            ]
+          }]
+        },
+        options: { responsive: true }
+      });
+    }
+
+    // Inicia
+    renderAluno();
+  </script>
+</body>
+</html>

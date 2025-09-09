@@ -3,7 +3,7 @@ session_start();
 header('Content-Type: application/json; charset=utf-8');
 require 'db.php';
 
-// Proteção
+// proteção (se você usa sessão de admin)
 if(!isset($_SESSION['admin_id'])){
     http_response_code(401);
     echo json_encode(['success'=>false,'message'=>'Não autorizado']);
@@ -29,14 +29,35 @@ $types = '';
 
 foreach($allowed as $f){
     if(array_key_exists($f, $data)){
-        // não atualiza se empresa_id for vazio
-        if($f === 'empresa_id' && ($data[$f] === '' || $data[$f] === null)) continue;
+        // se empresa_id vazio — interpretar como interesse de deixar null? aqui vamos ignorar vazio (não atualiza)
+        if($f === 'empresa_id'){
+            if($data[$f] === '' || $data[$f] === null){
+                // se quiser definir NULL explicitamente, troque a lógica; por enquanto, ignora campo vazio
+                continue;
+            }
+            // valida existência da empresa
+            $empId = intval($data[$f]);
+            $chk = $mysqli->prepare("SELECT id FROM empresas WHERE id = ?");
+            if(!$chk){ echo json_encode(['success'=>false,'error'=>'Erro DB: '.$mysqli->error]); exit; }
+            $chk->bind_param('i', $empId);
+            $chk->execute();
+            $chk->store_result();
+            if($chk->num_rows === 0){
+                echo json_encode(['success'=>false,'error'=>'Empresa inválida (id não encontrada)']); $chk->close(); exit;
+            }
+            $chk->close();
+
+            $fields[] = "$f = ?";
+            $params[] = $empId;
+            $types .= 'i';
+            continue;
+        }
 
         $fields[] = "$f = ?";
         $params[] = $data[$f];
 
-        if($f==='cargaSemanal' || $f==='idade' || $f==='empresa_id' || $f==='renovou_contrato') $types .= 'i';
-        else if($f==='bolsa') $types .= 'd';
+        if(in_array($f, ['cargaSemanal','idade','renovou_contrato'])) $types .= 'i';
+        else if($f === 'bolsa') $types .= 'd';
         else $types .= 's';
     }
 }
@@ -52,16 +73,16 @@ $types .= 'i';
 
 $stmt = $mysqli->prepare($sql);
 if(!$stmt){
-    echo json_encode(['success'=>false,'error'=>'Erro no prepare: '.$mysqli->error, 'sql'=>$sql]);
+    echo json_encode(['success'=>false,'error'=>'Erro prepare: '.$mysqli->error, 'sql'=>$sql]);
     exit;
 }
 
-// bind_param dinâmico
+// bind dinâmico
+$bind_names = [];
 $bind_names[] = $types;
-for($i=0; $i<count($params); $i++){
-    $bind_name = 'bind'.$i;
-    $$bind_name = $params[$i];
-    $bind_names[] = &$$bind_name;
+for($i=0;$i<count($params);$i++){
+    ${"bind".$i} = $params[$i];
+    $bind_names[] = &${"bind".$i};
 }
 call_user_func_array([$stmt,'bind_param'],$bind_names);
 
@@ -70,7 +91,7 @@ if($ok){
     if($stmt->affected_rows>0){
         echo json_encode(['success'=>true]);
     } else {
-        echo json_encode(['success'=>false,'error'=>'Nenhuma linha alterada']);
+        echo json_encode(['success'=>false,'error'=>'Nenhuma linha alterada (os dados podem ser iguais)']);
     }
 }else{
     echo json_encode(['success'=>false,'error'=>$stmt->error, 'sql'=>$sql]);
@@ -78,4 +99,3 @@ if($ok){
 
 $stmt->close();
 $mysqli->close();
-?>
