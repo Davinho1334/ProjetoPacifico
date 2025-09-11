@@ -1,66 +1,58 @@
 <?php
-session_start();
+// php/get_students.php
 header('Content-Type: application/json; charset=utf-8');
-require 'db.php';
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+session_start();
 
-// php/get_students.php (topo do arquivo)
+require_once __DIR__ . '/db.php';
+if (file_exists(__DIR__ . '/_pdo_boot.php')) require_once __DIR__ . '/_pdo_boot.php';
+if (file_exists(__DIR__ . '/_db_bridge.php')) require_once __DIR__ . '/_db_bridge.php';
 
-if (empty($_SESSION['admin_id'])) {
-  http_response_code(401);
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Não autorizado']);
-  exit;
-}
+function out($ok,$msg,$extra=[]){ echo json_encode(array_merge(['success'=>$ok,'message'=>$msg],$extra)); exit; }
 
-// ... resto do código que busca os alunos ...
+// Detecta conexão
+$driver=null; $dbh=null;
+if (isset($pdo) && $pdo instanceof PDO) { $driver='pdo'; $dbh=$pdo; }
+elseif (isset($conn) && $conn instanceof mysqli) { $driver='mysqli'; $dbh=$conn; }
+elseif (isset($db) && $db instanceof mysqli) { $driver='mysqli'; $dbh=$db; }
+if (!$dbh) out(false,'Conexão não encontrada.');
 
-// Proteção
-if(!isset($_SESSION['admin_id'])){
-    http_response_code(401);
-    echo json_encode(['success'=>false,'message'=>'Não autorizado']);
-    exit;
-}
+// Monta SELECT básico (inclui campos usados no dashboard)
+$baseFields = "id,nome,cpf,ra,curso,turno,serie,status,escola,cargaSemanal,empresa_id,empresa,inicio_trabalho,fim_trabalho,renovou_contrato,tipo_contrato,recebeu_bolsa";
 
-// Se for busca individual
-if(isset($_GET['id']) && $_GET['id'] !== ''){
-    $id = intval($_GET['id']);
-    $stmt = $mysqli->prepare("
-        SELECT a.id, a.ra, a.nome, a.cpf, a.ano_nascimento, a.curso, a.turno, a.serie, a.status,
-               a.cargaSemanal, a.bolsa, a.escola,
-               a.contato_aluno, a.idade, a.relatorio, a.observacao,
-               a.empresa_id, c.razao_social AS empresa_nome,
-               a.inicio_trabalho, a.fim_trabalho, a.renovou_contrato, a.criado_em
-        FROM alunos a
-        LEFT JOIN empresas c ON a.empresa_id = c.id
-        WHERE a.id = ?
-    ");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res->fetch_assoc();
-    echo json_encode(['success'=>true,'data'=>$row]);
-    $stmt->close();
-    $mysqli->close();
-    exit;
-}
-
-// Busca geral
-$res = $mysqli->query("
-    SELECT a.id, a.ra, a.nome, a.cpf, a.ano_nascimento, a.curso, a.turno, a.serie, a.status,
-           a.cargaSemanal, a.bolsa, a.escola,
-           a.contato_aluno, a.idade, a.relatorio, a.observacao,
-           a.empresa_id, c.razao_social AS empresa_nome,
-           a.inicio_trabalho, a.fim_trabalho, a.renovou_contrato, a.criado_em
-    FROM alunos a
-    LEFT JOIN empresas c ON a.empresa_id = c.id
-    ORDER BY a.criado_em DESC
-");
-$data = [];
-if($res){
-  while($row = $res->fetch_assoc()){
-    $data[] = $row;
+// Buscar por ID?
+if (isset($_GET['id']) && $_GET['id'] !== '') {
+  $id = (int)$_GET['id'];
+  try {
+    if ($driver === 'pdo') {
+      $st = $dbh->prepare("SELECT {$baseFields} FROM alunos WHERE id = ? LIMIT 1");
+      $st->execute([$id]);
+      $row = $st->fetch(PDO::FETCH_ASSOC);
+    } else {
+      $st = $dbh->prepare("SELECT {$baseFields} FROM alunos WHERE id = ? LIMIT 1");
+      $st->bind_param('i', $id);
+      $st->execute();
+      $res = $st->get_result();
+      $row = $res ? $res->fetch_assoc() : null;
+      $st->close();
+    }
+    out(true,'ok',['data'=>$row ?: null]);
+  } catch(Throwable $e){
+    out(false,'Erro ao buscar aluno',['error'=>$e->getMessage()]);
   }
 }
-echo json_encode(['success'=>true,'data'=>$data]);
-$mysqli->close();
+
+// Listar todos
+try{
+  if ($driver === 'pdo') {
+    $rows = $dbh->query("SELECT {$baseFields} FROM alunos ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+  } else {
+    $res = $dbh->query("SELECT {$baseFields} FROM alunos ORDER BY id DESC");
+    $rows = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
+  }
+  out(true,'ok',['data'=>$rows]);
+} catch(Throwable $e){
+  out(false,'Erro ao listar alunos',['error'=>$e->getMessage()]);
+}
 ?>

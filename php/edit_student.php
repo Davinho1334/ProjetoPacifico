@@ -1,101 +1,115 @@
 <?php
-session_start();
+// php/edit_student.php
 header('Content-Type: application/json; charset=utf-8');
-require 'db.php';
 
-// proteção (se você usa sessão de admin)
-if(!isset($_SESSION['admin_id'])){
-    http_response_code(401);
-    echo json_encode(['success'=>false,'message'=>'Não autorizado']);
-    exit;
-}
+require_once __DIR__ . '/db.php'; // deve definir $pdo (PDO)
 
-$data = json_decode(file_get_contents('php://input'), true);
-$id = $data['id'] ?? null;
-if(!$id){
-    echo json_encode(['success'=>false,'error'=>'ID inválido']);
-    exit;
-}
-
-$allowed = [
-    'ra','curso','turno','serie','status','cargaSemanal','bolsa',
-    'contato_aluno','idade','relatorio','observacao','empresa_id',
-    'inicio_trabalho','fim_trabalho','renovou_contrato','tipo_contrato' // <-- adicionado
-];
-
-$fields = [];
-$params = [];
-$types = '';
-
-foreach($allowed as $f){
-    if(array_key_exists($f, $data)){
-        if($f === 'empresa_id'){
-            if($data[$f] === '' || $data[$f] === null){
-                continue; // ignora se vazio
-            }
-            $empId = intval($data[$f]);
-            $chk = $mysqli->prepare("SELECT id FROM empresas WHERE id = ?");
-            if(!$chk){ echo json_encode(['success'=>false,'error'=>'Erro DB: '.$mysqli->error]); exit; }
-            $chk->bind_param('i', $empId);
-            $chk->execute();
-            $chk->store_result();
-            if($chk->num_rows === 0){
-                echo json_encode(['success'=>false,'error'=>'Empresa inválida (id não encontrada)']); 
-                $chk->close(); 
-                exit;
-            }
-            $chk->close();
-
-            $fields[] = "$f = ?";
-            $params[] = $empId;
-            $types .= 'i';
-            continue;
-        }
-
-        $fields[] = "$f = ?";
-        $params[] = $data[$f];
-
-        if(in_array($f, ['cargaSemanal','idade','renovou_contrato'])) $types .= 'i';
-        else if($f === 'bolsa') $types .= 'd';
-        else $types .= 's';
+try {
+    // Lê JSON do corpo
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
+    if (!is_array($data)) {
+        echo json_encode(['success'=>false,'message'=>'Payload inválido']);
+        exit;
     }
-}
 
-if(empty($fields)){
-    echo json_encode(['success'=>false,'error'=>'Nada para atualizar']);
-    exit;
-}
+    // Coleta/normaliza campos
+    $id              = isset($data['id']) ? (int)$data['id'] : 0;
+    $ra              = trim($data['ra'] ?? '');
+    $curso           = trim($data['curso'] ?? '');
+    $turno           = trim($data['turno'] ?? '');
+    $serie           = trim($data['serie'] ?? '');
+    $status          = trim($data['status'] ?? '');
+    $cargaSemanal    = isset($data['cargaSemanal']) ? (int)$data['cargaSemanal'] : 0;
 
-$sql = "UPDATE alunos SET ".implode(', ', $fields)." WHERE id = ?";
-$params[] = $id;
-$types .= 'i';
+    $empresa_id      = $data['empresa_id'] ?? null;
+    if ($empresa_id === '' || $empresa_id === null) $empresa_id = null; else $empresa_id = (int)$empresa_id;
 
-$stmt = $mysqli->prepare($sql);
-if(!$stmt){
-    echo json_encode(['success'=>false,'error'=>'Erro prepare: '.$mysqli->error, 'sql'=>$sql]);
-    exit;
-}
+    $inicio_trabalho = $data['inicio_trabalho'] ?? null;
+    $fim_trabalho    = $data['fim_trabalho'] ?? null;
+    if ($inicio_trabalho === '') $inicio_trabalho = null;
+    if ($fim_trabalho === '')    $fim_trabalho    = null;
 
-// bind dinâmico
-$bind_names = [];
-$bind_names[] = $types;
-for($i=0;$i<count($params);$i++){
-    ${"bind".$i} = $params[$i];
-    $bind_names[] = &${"bind".$i};
-}
-call_user_func_array([$stmt,'bind_param'],$bind_names);
+    $renovou_contrato = isset($data['renovou_contrato']) ? (int)$data['renovou_contrato'] : 0;
 
-$ok = $stmt->execute();
-if($ok){
-    if($stmt->affected_rows>0){
-        echo json_encode(['success'=>true]);
+    $contato_aluno   = trim($data['contato_aluno'] ?? '');
+    $idade           = $data['idade'] ?? null;
+    if ($idade === '' || $idade === null) $idade = null; else $idade = (int)$idade;
+
+    $relatorio       = trim($data['relatorio'] ?? '');
+    $observacao      = trim($data['observacao'] ?? '');
+    $tipo_contrato   = trim($data['tipo_contrato'] ?? '');
+
+    // recebeu_bolsa: 1, 0 ou null
+    $recebeu_bolsa   = $data['recebeu_bolsa'] ?? null;
+    if ($recebeu_bolsa === '' || $recebeu_bolsa === null) $recebeu_bolsa = null;
+    else $recebeu_bolsa = (int)$recebeu_bolsa;
+
+    if ($id <= 0) {
+        echo json_encode(['success'=>false,'message'=>'ID inválido']);
+        exit;
+    }
+
+    // Monta UPDATE
+    // IMPORTANTE: RA usa NULLIF(:ra,'') para gravar NULL quando vier vazio,
+    // permitindo múltiplos alunos sem RA sem violar UNIQUE.
+    $sql = "
+        UPDATE alunos
+           SET ra              = NULLIF(:ra,''),
+               curso           = :curso,
+               turno           = :turno,
+               serie           = :serie,
+               status          = :status,
+               cargaSemanal    = :cargaSemanal,
+               empresa_id      = :empresa_id,
+               inicio_trabalho = :inicio_trabalho,
+               fim_trabalho    = :fim_trabalho,
+               renovou_contrato= :renovou_contrato,
+               contato_aluno   = :contato_aluno,
+               idade           = :idade,
+               relatorio       = :relatorio,
+               observacao      = :observacao,
+               tipo_contrato   = :tipo_contrato,
+               recebeu_bolsa   = :recebeu_bolsa
+         WHERE id = :id
+        LIMIT 1
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $ok = $stmt->execute([
+        ':ra'               => $ra,                 // vazio vira NULL pelo NULLIF
+        ':curso'            => $curso ?: null,
+        ':turno'            => $turno ?: null,
+        ':serie'            => $serie ?: null,
+        ':status'           => $status ?: null,
+        ':cargaSemanal'     => $cargaSemanal,
+        ':empresa_id'       => $empresa_id,
+        ':inicio_trabalho'  => $inicio_trabalho,
+        ':fim_trabalho'     => $fim_trabalho,
+        ':renovou_contrato' => $renovou_contrato,
+        ':contato_aluno'    => $contato_aluno ?: null,
+        ':idade'            => $idade,
+        ':relatorio'        => $relatorio ?: null,
+        ':observacao'       => $observacao ?: null,
+        ':tipo_contrato'    => $tipo_contrato ?: null,
+        ':recebeu_bolsa'    => $recebeu_bolsa,
+        ':id'               => $id
+    ]);
+
+    if ($ok) {
+        echo json_encode(['success'=>true,'message'=>'Atualizado com sucesso']);
     } else {
-        echo json_encode(['success'=>false,'error'=>'Nenhuma linha alterada (os dados podem ser iguais)']);
+        echo json_encode(['success'=>false,'message'=>'Falha ao atualizar']);
     }
-}else{
-    echo json_encode(['success'=>false,'error'=>$stmt->error, 'sql'=>$sql]);
+} catch (PDOException $e) {
+    // Trata RA duplicado (1062)
+    if ($e->getCode() === '23000') {
+        $msg = $e->getMessage();
+        if (stripos($msg, 'Duplicate entry') !== false && stripos($msg, "'ra'") !== false) {
+            echo json_encode(['success'=>false,'message'=>'RA já cadastrado para outro aluno.']);
+            exit;
+        }
+    }
+    echo json_encode(['success'=>false,'message'=>'Erro no servidor','error'=>$e->getMessage()]);
 }
-
-$stmt->close();
-$mysqli->close();
 ?>

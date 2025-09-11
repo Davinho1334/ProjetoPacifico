@@ -1,21 +1,23 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cadastro de Empresas</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <main class="form-container">
     <h2>Cadastrar Empresa</h2>
-    <form id="empresaForm" action="php/register_company.php" method="POST">
+
+    <form id="companyForm">
       <label>Nome
-        <input required name="razao_social" type="text" />
+        <!-- IMPORTANTE: o back-end aceita "razao_social" (ou "nome") -->
+        <input name="razao_social" type="text" required />
       </label>
 
       <label>CNPJ
-        <input required name="cnpj" type="text" maxlength="18" />
+        <input name="cnpj" type="text" required />
       </label>
 
       <label>Endereço
@@ -23,7 +25,7 @@
       </label>
 
       <label>CEP
-        <input name="cep" type="text" maxlength="9" />
+        <input name="cep" type="text" />
       </label>
 
       <label>Telefone
@@ -39,28 +41,41 @@
       </label>
 
       <div class="actions">
-        <button type="submit" class="btn">Salvar</button>
-        <a href="admin_dashboard.html" class="btn btn-outline">Voltar</a>
+        <button class="btn" type="submit">Salvar</button>
+        <a class="btn btn-outline" href="admin_dashboard.html">Voltar</a>
       </div>
+
       <div id="msg" class="msg"></div>
     </form>
   </main>
 
   <script>
-    document.getElementById('empresaForm').addEventListener('submit', async e=>{
+    const form = document.getElementById('companyForm');
+    const msg  = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const f = e.target;
-      const data = new FormData(f);
-      const res = await fetch('php/register_company.php',{method:'POST',body:data});
-      const json = await res.json();
-      const msg = document.getElementById('msg');
-      if(json.success){
-        msg.className='msg success';
-        msg.innerText=json.message;
-        f.reset();
-      } else {
-        msg.className='msg error';
-        msg.innerText=json.message;
+      msg.className = 'msg';
+      msg.textContent = 'Enviando...';
+
+      try {
+        const data = new FormData(form);
+        const res  = await fetch('php/register_company.php', { method: 'POST', body: data, credentials: 'same-origin' });
+        const json = await res.json().catch(() => ({}));
+
+        console.log('register_company.php ⇒', json); // ajuda a diagnosticar
+
+        if (json && json.success) {
+          msg.className = 'msg success';
+          msg.textContent = json.message || 'Empresa cadastrada com sucesso!';
+          form.reset();
+        } else {
+          msg.className = 'msg error';
+          msg.textContent = (json && (json.message || json.error)) || 'Erro ao salvar empresa';
+        }
+      } catch (err) {
+        msg.className = 'msg error';
+        msg.textContent = 'Erro de rede: ' + err.message;
       }
     });
   </script>

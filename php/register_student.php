@@ -1,113 +1,145 @@
 <?php
-session_start();
+// php/register_student.php
 header('Content-Type: application/json; charset=utf-8');
-require 'db.php';
+error_reporting(E_ALL);
+ini_set('display_errors','0');
+session_start();
 
-// Recebe campos do form (FormData)
-$nome = trim($_POST['nome'] ?? '');
-$cpf = preg_replace('/\D/','', $_POST['cpf'] ?? '');
-$ra = trim($_POST['ra'] ?? null);
-$ano = $_POST['ano_nascimento'] !== '' ? intval($_POST['ano_nascimento']) : null;
+// ---------- DEBUG LIGADO ----------
+const DEBUG = true;
+
+function J($ok,$msg,$extra=[]) {
+  static $sent=false; if ($sent) return; $sent=true;
+  echo json_encode(array_merge(['success'=>$ok,'message'=>$msg], $extra));
+  exit;
+}
+set_exception_handler(function(Throwable $e){
+  J(false,'Erro no servidor', ['error'=>$e->getMessage()]);
+});
+register_shutdown_function(function(){
+  $e = error_get_last();
+  if ($e) J(false,'Erro fatal no servidor', ['error'=>$e['message'].' @ '.$e['file'].':'.$e['line']]);
+});
+
+// ---------- ENTRADA ----------
+$nome  = trim($_POST['nome'] ?? '');
+$cpf   = trim($_POST['cpf'] ?? '');
+$ra    = trim($_POST['ra'] ?? '');
+$ano_n = trim($_POST['ano_nascimento'] ?? '');
 $curso = trim($_POST['curso'] ?? '');
 $turno = trim($_POST['turno'] ?? '');
-$serie = trim($_POST['serie'] ?? '1º');
-$contato = trim($_POST['contato_aluno'] ?? '');
-$idade = isset($_POST['idade']) && $_POST['idade'] !== '' ? intval($_POST['idade']) : null;
-$relatorio = trim($_POST['relatorio'] ?? '');
-$observacao = trim($_POST['observacao'] ?? '');
-$empresa_id = isset($_POST['empresa_id']) && $_POST['empresa_id'] !== '' ? intval($_POST['empresa_id']) : null;
+$serie = trim($_POST['serie'] ?? '');
 
-if(!$nome || !$cpf || !$curso){
-  echo json_encode(['success'=>false,'message'=>'Campos obrigatórios ausentes.']);
-  exit;
+if ($nome==='' || $cpf==='' || $curso==='' || $turno==='' || $serie==='') {
+  J(false,'Preencha todos os campos obrigatórios.');
 }
 
-// verifica CPF duplicado
-$stmt = $mysqli->prepare("SELECT id FROM alunos WHERE cpf = ?");
-$stmt->bind_param('s', $cpf);
-$stmt->execute();
-$stmt->store_result();
-if($stmt->num_rows > 0){
-  echo json_encode(['success'=>false,'message'=>'CPF já cadastrado.']);
-  $stmt->close();
-  exit;
-}
-$stmt->close();
+// ---------- ISOLA db.php ----------
+ob_start();
+$ok_inc = @include __DIR__.'/db.php';
+if (file_exists(__DIR__.'/_pdo_boot.php')) @include __DIR__.'/_pdo_boot.php';
+if (file_exists(__DIR__.'/_db_bridge.php')) @include __DIR__.'/_db_bridge.php';
+$include_output = ob_get_clean();
 
-// se empresa_id foi enviado, validar existência
-if($empresa_id !== null){
-  $c = $mysqli->prepare("SELECT id FROM empresas WHERE id = ?");
-  if(!$c){ echo json_encode(['success'=>false,'message'=>'Erro DB: '.$mysqli->error]); exit; }
-  $c->bind_param('i',$empresa_id);
-  $c->execute();
-  $c->store_result();
-  if($c->num_rows === 0){
-    echo json_encode(['success'=>false,'message'=>'Empresa selecionada inválida.']);
-    $c->close();
-    exit;
+if (!$ok_inc) {
+  J(false,'Falha ao incluir db.php', ['include_output'=>mb_substr($include_output,0,400)]);
+}
+if ($include_output !== '') {
+  J(false,'db.php gerou saída inesperada', ['include_output'=>mb_substr($include_output,0,400)]);
+}
+
+// ---------- DETECTA CONEXÃO ----------
+$driver=null; $dbh=null;
+if (isset($pdo) && $pdo instanceof PDO) { $driver='pdo'; $dbh=$pdo; }
+elseif (isset($conn) && $conn instanceof mysqli) { $driver='mysqli'; $dbh=$conn; }
+elseif (isset($db) && $db instanceof mysqli) { $driver='mysqli'; $dbh=$db; }
+elseif (function_exists('getPDO')) { $tmp=@getPDO(); if ($tmp instanceof PDO){ $driver='pdo'; $dbh=$tmp; } }
+
+if (!$dbh) {
+  J(false,'Conexão com o banco não encontrada após incluir db.php.',
+    ['globals'=>array_keys($GLOBALS)]
+  );
+}
+
+// ---------- INTROSPECÇÃO (SEM get_result) ----------
+function table_exists($driver,$dbh,$table){
+  if ($driver==='pdo') {
+    $st = $dbh->query("SHOW TABLES LIKE " . $dbh->quote($table));
+    return (bool)$st->fetchColumn();
+  } else {
+    $t = $dbh->real_escape_string($table);
+    $res = $dbh->query("SHOW TABLES LIKE '{$t}'");
+    return $res && $res->num_rows>0;
   }
-  $c->close();
+}
+function col_exists($driver,$dbh,$table,$col){
+  if ($driver==='pdo') {
+    $st = $dbh->query("SHOW COLUMNS FROM `{$table}` LIKE " . $dbh->quote($col));
+    return (bool)$st->fetchColumn();
+  } else {
+    $t = $dbh->real_escape_string($table);
+    $c = $dbh->real_escape_string($col);
+    $res = $dbh->query("SHOW COLUMNS FROM `{$t}` LIKE '{$c}'");
+    return $res && $res->num_rows>0;
+  }
 }
 
-// gerar RA se vazio
-if(!$ra){
-  $ra = 'RA'.time();
+$table = 'alunos';
+if (!table_exists($driver,$dbh,$table)) {
+  J(false,"Tabela '{$table}' não encontrada.", ['driver'=>$driver]);
 }
 
-// montar insert dinâmico (empresa_id pode ser NULL)
-$columns = ['ra','nome','cpf','ano_nascimento','curso','turno','serie','status','contato_aluno','idade','relatorio','observacao'];
-$placeholders = array_fill(0, count($columns), '?');
-$params = [];
-$types = '';
+// coluna do ano
+$colAno = null;
+if (col_exists($driver,$dbh,$table,'ano_nascimento')) $colAno='ano_nascimento';
+elseif (col_exists($driver,$dbh,$table,'ano'))        $colAno='ano';
+if (!$colAno) J(false,"Nenhuma coluna de ano encontrada (esperado 'ano_nascimento' ou 'ano').",['driver'=>$driver]);
 
-// valores (na ordem das colunas)
-$values = [
-  $ra, $nome, $cpf,
-  $ano !== null ? $ano : null,
-  $curso, $turno, $serie,
-  'Em andamento',
-  $contato,
-  $idade !== null ? $idade : null,
-  $relatorio,
-  $observacao
-];
+$hasRecebeu = col_exists($driver,$dbh,$table,'recebeu_bolsa');
 
-// se empresa_id enviado, adiciona coluna e placeholder
-if($empresa_id !== null){
-  $columns[] = 'empresa_id';
-  $placeholders[] = '?';
-  $values[] = $empresa_id;
+// CPF único?
+if (col_exists($driver,$dbh,$table,'cpf')) {
+  if ($driver==='pdo') {
+    $st = $dbh->prepare("SELECT id FROM `{$table}` WHERE cpf=? LIMIT 1");
+    $st->execute([$cpf]);
+    if ($st->fetch()) J(false,'Já existe um aluno com este CPF.');
+  } else {
+    $sql = "SELECT id FROM `{$table}` WHERE cpf=? LIMIT 1";
+    $st = $dbh->prepare($sql);
+    if (!$st) J(false,'Erro prepare (mysqli)', ['sql'=>$sql,'mysqli_error'=>$dbh->error,'driver'=>$driver]);
+    $st->bind_param('s',$cpf);
+    $ok = $st->execute();
+    if (!$ok) { $err=$st->error; $st->close(); J(false,'Erro execute (mysqli)',['sql'=>$sql,'mysqli_error'=>$err,'driver'=>$driver]); }
+    $st->store_result();
+    if ($st->num_rows>0) { $st->close(); J(false,'Já existe um aluno com este CPF.'); }
+    $st->close();
+  }
 }
 
-// contrói SQL
-$sql = "INSERT INTO alunos (".implode(',', $columns).") VALUES (".implode(',', $placeholders).")";
-$stmt = $mysqli->prepare($sql);
-if(!$stmt){
-  echo json_encode(['success'=>false,'message'=>'Erro prepare: '.$mysqli->error,'sql'=>$sql]);
-  exit;
-}
+// ---------- INSERT ----------
+$cols = ['nome','cpf','ra',$colAno,'curso','turno','serie'];
+$vals = [$nome,$cpf,($ra!==''?$ra:null),($ano_n!==''?(int)$ano_n:null),$curso,$turno,$serie];
+if ($hasRecebeu) { $cols[]='recebeu_bolsa'; $vals[] = null; }
 
-// montar tipos e bind dinamicamente
-$types = '';
-foreach($columns as $col){
-  // mapear tipo
-  if(in_array($col, ['ano_nascimento','idade','empresa_id'])) $types .= 'i';
-  else $types .= 's';
-}
-$bind_params = [];
-$bind_params[] = $types;
-for($i=0; $i < count($values); $i++){
-  // precisa ser variável (referência)
-  ${"param".$i} = $values[$i];
-  $bind_params[] = &${"param".$i};
-}
-call_user_func_array([$stmt, 'bind_param'], $bind_params);
+$placeholders = implode(',', array_fill(0, count($cols), '?'));
+$sql = "INSERT INTO `{$table}` (".implode(',', $cols).") VALUES ({$placeholders})";
 
-$ok = $stmt->execute();
-if($ok){
-  echo json_encode(['success'=>true,'message'=>'Cadastro realizado com sucesso!']);
-} else {
-  echo json_encode(['success'=>false,'message'=>'Erro ao inserir: '.$stmt->error]);
+try {
+  if ($driver==='pdo') {
+    $st = $dbh->prepare($sql);
+    $st->execute($vals);
+  } else {
+    $st = $dbh->prepare($sql);
+    if (!$st) J(false,'Erro prepare (mysqli)', ['sql'=>$sql,'mysqli_error'=>$dbh->error,'driver'=>$driver,'cols'=>$cols,'vals_preview'=>$vals]);
+    $types = str_repeat('s', count($vals)); // simples e suficiente
+    $st->bind_param($types, ...$vals);
+    $ok = $st->execute();
+    if (!$ok) { $err=$st->error; $st->close(); J(false,'Erro execute (mysqli)',['sql'=>$sql,'mysqli_error'=>$err,'driver'=>$driver]); }
+    $st->close();
+  }
+  J(true,'Aluno cadastrado com sucesso.', ['driver'=>$driver,'colAno'=>$colAno,'temRecebeuBolsa'=>$hasRecebeu]);
+
+} catch (Throwable $e) {
+  J(false,'Erro ao cadastrar', ['error'=>$e->getMessage(),'sql'=>$sql,'driver'=>$driver]);
 }
-$stmt->close();
-$mysqli->close();
+?>

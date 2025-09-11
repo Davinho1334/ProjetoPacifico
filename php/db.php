@@ -1,13 +1,13 @@
 <?php
-$DB_HOST = '127.0.0.1';
-$DB_USER = 'root';
-$DB_PASS = ''; // no XAMPP geralmente é vazio
-$DB_NAME = 'escola_portal';
+$host = "127.0.0.1";   // ou "localhost"
+$dbname = "escola_portal"; // <-- troque pelo nome exato do seu banco
+$user = "root";        // usuário do MySQL
+$pass = "";            // senha do MySQL (no XAMPP normalmente é vazio)
 
-$mysqli = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
-if($mysqli->connect_error){
-  http_response_code(500);
-  die(json_encode(['success'=>false,'message'=>'Erro na conexão com o banco: '.$mysqli->connect_error]));
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Erro de conexão com o banco de dados: " . $e->getMessage());
 }
-$mysqli->set_charset("utf8mb4");
 ?>

@@ -27,7 +27,18 @@
       </label>
 
       <label>Curso
-        <input required name="curso" type="text" />
+        <select required name="curso">
+          <option value="">Selecione...</option>
+          <option>Técnico em Informática</option>
+          <option>Edificações</option>
+          <option>Enfermagem</option>
+          <option>Análises Clínicas</option>
+          <option>Mecânica Automotiva</option>
+          <option>Desenvolvimento de Sistemas</option>
+          <option>Energias Renováveis</option>
+          <option>Segurança do Trabalho</option>
+          <option>Farmácia</option>
+        </select>
       </label>
 
       <label>Turno
@@ -49,32 +60,49 @@
       <div class="actions">
         <button type="submit" class="btn">Finalizar cadastro</button>
         <a href="aluno_login.html" class="btn btn-outline">Ir para Login</a>
-        <a href="aluno_painel.html" class="btn btn-outline">Ir para Painel</a>
         <a href="index.html" class="btn btn-outline">Voltar</a>
       </div>
       <div id="msg" class="msg"></div>
     </form>
   </main>
 
-  <script src="javascript/script.js"></script>
   <script>
-    // lógica de envio (fetch) já modularizada no script.js; chama a função:
-    document.getElementById('cadastroForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const f = e.target;
-      const data = new FormData(f);
-      const res = await fetch('php/register_student.php', { method:'POST', body: data });
-      const json = await res.json();
-      const msg = document.getElementById('msg');
-      if(json.success){
+  document.getElementById('cadastroForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const msg = document.getElementById('msg');
+
+    try {
+      const res = await fetch('php/register_student.php', { method: 'POST', body: data, credentials: 'same-origin' });
+      const raw = await res.text();
+
+      let json;
+      try { json = JSON.parse(raw); } catch {
+        msg.className = 'msg error';
+        msg.innerText = 'Resposta inesperada do servidor (mostrando os primeiros 400 caracteres):\n' + raw.slice(0, 400);
+        return;
+      }
+
+      if (json.success) {
         msg.className = 'msg success';
-        msg.innerText = json.message;
-        setTimeout(()=> location.href = 'index.html', 2000); // volta à página inicial
+        msg.innerText = json.message || 'Aluno cadastrado com sucesso.';
+        setTimeout(()=> location.href = 'index.html', 1200);
       } else {
         msg.className = 'msg error';
-        msg.innerText = json.message;
+        // exibe mensagem + detalhes (erro/SQL/saída do db.php)
+        let det = [];
+        if (json.error) det.push('Erro: ' + json.error);
+        if (json.sql) det.push('SQL: ' + json.sql);
+        if (json.include_output) det.push('Saída do db.php: ' + json.include_output);
+        msg.innerText = (json.message || 'Erro no servidor') + (det.length ? '\n\n' + det.join('\n') : '');
       }
-    });
-  </script>
+    } catch (err) {
+      msg.className = 'msg error';
+      msg.innerText = 'Falha de rede: ' + err.message;
+    }
+  });
+</script>
+
+
 </body>
 </html>
