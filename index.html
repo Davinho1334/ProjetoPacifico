@@ -3,18 +3,119 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Painel - Escola</title>
+  <title>Portal de Intermediação - Escola</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <main class="centered">
-    <h1>Portal de Intermediação - Escola</h1>
-    <div class="btn-row">
-      <a class="btn" href="aluno.html">Aluno</a>
-      <a class="btn btn-outline" href="admin_login.html">Administrador</a>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <h1>Portal Escola</h1>
+    <nav class="actions" aria-label="Ações rápidas">
+      <a class="btn btn-small" href="admin_login.html">Entrar (Admin)</a>
+    </nav>
+  </header>
+
+  <!-- Hero como banner colorido -->
+  <section 
+    class="centered" 
+    style="padding:64px 24px; 
+           background: linear-gradient(135deg, #0055a5, #003366); 
+           color:white; 
+           border-radius: 12px; 
+           box-shadow: 0 6px 18px rgba(0,0,0,0.25); 
+           margin-top:32px;">
+    <h2 style="margin-bottom:12px; font-size:2rem;">Conecte alunos, administração e empresas</h2>
+    <p style="max-width:720px; margin:0 auto; font-size:1.1rem; line-height:1.6;">
+      Visualização rápida, relatórios e acesso seguro em uma interface amigável e moderna.
+    </p>
+  </section>
+
+  <!-- Métricas educativas -->
+  <section class="container" aria-label="Métricas">
+    <div class="dashboard-cards">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px; margin-bottom:6px;">👨‍🎓</div>
+        <div style="font-weight:700; font-size:20px; color:var(--primary);">1.5k Manhã e Tarde</div>
+        <div class="small">Estudantes</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px; margin-bottom:6px;">🏫</div>
+        <div style="font-weight:700; font-size:20px; color:var(--primary);">CETI José Pacífico</div>
+        <div class="small">Unidades de Ensino</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px; margin-bottom:6px;">🤝</div>
+        <div style="font-weight:700; font-size:20px; color:var(--primary);">Qualidade</div>
+        <div class="small">Parceiros Educacionais</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px; margin-bottom:6px;">📚</div>
+        <div style="font-weight:700; font-size:20px; color:var(--primary);">~100% Aprovada</div>
+        <div class="small">Qualidade Acadêmica</div>
+      </div>
     </div>
+  </section>
+
+  <!-- Destaques -->
+  <section class="container" aria-label="Destaques">
+    <div class="dashboard-cards">
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Gestão de Estudantes</h2>
+        <p class="small">Cadastre os seus dados e todos os seus status em tempo real.</p>
+        <div class="actions" style="margin-top:12px;">
+          <a class="btn btn-outline" href="aluno.html">Área do aluno</a>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:6px;">O que acontece no painel Administrativo?</h2>
+        <p class="small">Filtros inteligentes, exportação e acompanhamento de métricas.</p>
+        
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Integrações</h2>
+        <p class="small">Compatível com XAMPP + MySQL e pronto para escalar.</p>
+        <div class="actions" style="gap:8px; margin-top:12px;">
+          <span class="btn-outline btn-small" style="pointer-events:none;">XAMPP</span>
+          <span class="btn-outline btn-small" style="pointer-events:none;">MySQL</span>
+          <span class="btn-outline btn-small" style="pointer-events:none;">CSV/PDF</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="container" aria-label="FAQ">
+    <div class="dashboard-cards">
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Quem pode acessar?</h2>
+        <p class="small">Estudantes com cadastro prévio e administradores autorizados.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Meus dados estão seguros?</h2>
+        <p class="small">Sim, utilizamos boas práticas de autenticação e camadas de acesso.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Exportações</h2>
+        <p class="small">A área administrativa permite exportar relatórios em PDF e planilhas.</p>
+        <div class="actions" style="margin-top:8px;">
+          <button class="btn-pdf btn-small" type="button">Gerar PDF</button>
+          <button class="btn-excel btn-small" type="button">Exportar Excel</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rodapé -->
+  <footer class="centered" style="padding-top:24px; padding-bottom:36px;">
     <p class="small">Sistema de cadastro e administração — XAMPP + MySQL</p>
-  </main>
+    <div class="actions" style="justify-content:center; margin-top:10px;">
+      <a class="aluno-link" href="#">Privacidade</a>
+      <a class="aluno-link" href="#">Termos</a>
+      <a class="aluno-link" href="#">Acessibilidade</a>
+    </div>
+  </footer>
+
   <script src="javascript/script.js"></script>
 </body>
 </html>
