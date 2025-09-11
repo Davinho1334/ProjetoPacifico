@@ -3,6 +3,17 @@ session_start();
 header('Content-Type: application/json; charset=utf-8');
 require 'db.php';
 
+// php/get_students.php (topo do arquivo)
+
+if (empty($_SESSION['admin_id'])) {
+  http_response_code(401);
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'message' => 'Não autorizado']);
+  exit;
+}
+
+// ... resto do código que busca os alunos ...
+
 // Proteção
 if(!isset($_SESSION['admin_id'])){
     http_response_code(401);

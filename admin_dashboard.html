@@ -152,9 +152,35 @@
     });
 
     logoutBtn.addEventListener('click', async () => {
-      await fetch('php/logout.php', { credentials: 'same-origin' });
-      location.href = 'index.html';
+  await fetch('php/logout.php', { credentials: 'same-origin' });
+  location.href = 'index.html';
+});
+    logoutBtn.addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    // Use POST e inclua credenciais para enviar o cookie de sessão
+    await fetch('php/logout.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Cache-Control': 'no-store' }
     });
+  } catch (err) {
+    // mesmo que falhe, vamos limpar o front e prosseguir
+    console.warn('Falha ao chamar logout.php', err);
+  }
+
+  // limpa qualquer dado do navegador (caso você use)
+  sessionStorage.clear();
+  localStorage.clear();
+
+  // evita que o usuário “volte” pro dashboard pelo histórico
+  location.replace('index.html');
+});
+
+// evita que o browser mostre página em cache ao voltar
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) location.reload();
+});
 
     // Inicialização
     fetchStudents();

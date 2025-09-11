@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel do Aluno</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #0b1320; color: #e9eefc; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding: 16px 20px; border-bottom: 1px solid #1f2942; background:#0f1626; position: sticky; top:0; }
+    .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 20px; margin: 0; }
+    .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #2a3350; background: transparent; color: #e9eefc; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 12px; }
+    .card { background: #0f1626; border: 1px solid #1f2942; border-radius: 12px; padding: 14px; }
+    .label { color:#9fb2ff; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    .value { margin-top: 4px; font-size: 16px; word-break: break-word; }
+    .msg { margin: 16px 0; color: #fca5a5; min-height: 20px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Painel do Aluno</h1>
+    <button id="logoutBtn" class="btn">Sair</button>
+  </header>
+
+  <main class="container">
+    <div id="msg" class="msg"></div>
+    <section id="info" class="grid"></section>
+  </main>
+
+  <script>
+    const msg  = document.getElementById('msg');
+    const info = document.getElementById('info');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('php/aluno_logout.php', { method: 'POST' });
+      } finally {
+        location.href = 'aluno_login.html';
+      }
+    });
+
+    function cell(label, value) {
+      return `<div class="card"><div class="label">${label}</div><div class="value">${value ?? '-'}</div></div>`;
+    }
+
+    function render(d) {
+      const idade  = (d.idade != null) ? `${d.idade} anos` : '-';
+      const renovou = (d.renovou_contrato === true) ? 'Sim' : (d.renovou_contrato === false ? 'Não' : '-');
+
+      // se quiser formatar datas tipo YYYY-MM-DD => dd/mm/aaaa:
+      const fdata = (s) => !s ? '-' : new Date(s).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' });
+
+      info.innerHTML = [
+        cell('R.A', d.ra),
+        cell('Nome', d.nome),
+        cell('Nome de nascimento', d.nome_nascimento),
+        cell('CPF', d.cpf),
+        cell('Curso', d.curso),
+        cell('Turno', d.turno),
+        cell('Série', d.serie),
+        cell('Status', d.status),
+        cell('Empresa', d.empresa),
+        cell('Início do contrato', fdata(d.inicio_trabalho)),
+        cell('Fim do contrato', fdata(d.fim_trabalho)),
+        cell('Renovou o contrato?', renovou),
+        cell('Contato', d.contato),
+        cell('Idade', idade),
+        cell('Tipo de contrato', d.tipo_contrato),
+        cell('Data de nascimento', fdata(d.data_nascimento)),
+      ].join('');
+    }
+
+    (async function init() {
+      msg.textContent = 'Carregando seus dados...';
+      try {
+        const res = await fetch('php/get_me.php');
+        let data;
+        try { data = await res.json(); } catch { data = { success:false, message:'Resposta inválida do servidor.' }; }
+
+        if (!res.ok || !data.success) {
+          // 401 -> sem sessão; demais erros -> mensagem
+          if (res.status === 401) { location.href = 'aluno_login.html'; return; }
+          msg.textContent = data.message || 'Não foi possível carregar seus dados.';
+          return;
+        }
+        msg.textContent = '';
+        render(data.data);
+      } catch (e) {
+        msg.textContent = 'Falha de rede ao carregar seus dados.';
+      }
+    })();
+  </script>
+</body>
+</html>
