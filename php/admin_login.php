@@ -1,13 +1,13 @@
 <?php
 // php/admin_login.php
 header('Content-Type: application/json; charset=utf-8');
-session_start();
-require_once __DIR__ . '/db.php'; // expõe $pdo
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 try {
-    // compat: aceita cpf/senha OU username/password
-    $cpf    = trim($_POST['cpf'] ?? $_POST['username'] ?? '');
-    $senha  = trim($_POST['senha'] ?? $_POST['password'] ?? '');
+    require_once __DIR__ . '/db.php';
+
+    $cpf   = trim($_POST['cpf'] ?? '');
+    $senha = trim($_POST['senha'] ?? '');
 
     if ($cpf === '' || $senha === '') {
         echo json_encode(['success'=>false,'message'=>'Informe CPF e senha.']);
@@ -28,16 +28,14 @@ try {
         exit;
     }
 
-    $_SESSION['admin_id']  = $adm['id'];
-    $_SESSION['admin_cpf'] = $adm['cpf'];
-    $_SESSION['admin_nome']= $adm['nome'];
-    // após validar as credenciais do admin:
-    session_start();
-    $_SESSION['admin_logged_in'] = true; // ou $_SESSION['admin']=true; ou $_SESSION['user_role']='admin';
-
+    $_SESSION['admin_id']         = $adm['id'];
+    $_SESSION['admin_cpf']        = $adm['cpf'];
+    $_SESSION['admin_nome']       = $adm['nome'];
+    $_SESSION['admin_logged_in']  = true; // flag usada pelo auth
 
     echo json_encode(['success'=>true,'message'=>'Login realizado.']);
 } catch (Throwable $e) {
+    http_response_code(500);
     echo json_encode(['success'=>false,'message'=>'Erro no servidor','error'=>$e->getMessage()]);
 }
 ?>

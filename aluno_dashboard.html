@@ -51,13 +51,77 @@
 
     <!-- Ações rápidas para aluno individual -->
     <section id="acoesRapidas" style="display:none;">
-      <div class="card" style="flex:1; min-width:280px;">
-        <h3>Ações Rápidas</h3>
-        <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
-        <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
-        <button class="btn btn-outline" onclick="registrarFrequencia(idParam)">Registrar Frequência</button>
-      </div>
+  <div class="card" style="flex:1; min-width:280px;">
+    <h3>Ações Rápidas</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
+      <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
+      <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
+      <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
+      <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
+    </div>
+    <small style="display:block; margin-top:.5rem; opacity:.8;">
+      Dica: edite os dados do aluno pelo botão <b>Editar</b> na lista geral antes de gerar os documentos.
+    </small>
+    </div>
+
     </section>
+    <!-- Editor de Agenda do Aprendiz (teórica e prática) -->
+<section id="editorAgenda" style="display:none; margin-top:1rem;">
+  <div class="card" style="flex:1; min-width:280px;">
+    <h3>Agenda do Programa (para o Contrato)</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <!-- Tabela TEÓRICA -->
+      <div>
+        <h4 style="margin:0 0 .5rem;">Aulas Teóricas</h4>
+        <table class="table" style="width:100%;">
+          <thead>
+            <tr><th>Dia</th><th>Início</th><th>Fim</th><th>Total diário</th></tr>
+          </thead>
+          <tbody id="tbTeorica">
+            <!-- Linhas geradas via JS -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right;"><b>Total semanal</b></td>
+              <td id="sumTeorica">0 h</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Tabela PRÁTICA -->
+      <div>
+        <h4 style="margin:0 0 .5rem;">Atividades Práticas</h4>
+        <table class="table" style="width:100%;">
+          <thead>
+            <tr><th>Dia</th><th>Início</th><th>Fim</th><th>Total diário</th></tr>
+          </thead>
+          <tbody id="tbPratica">
+            <!-- Linhas geradas via JS -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right;"><b>Total semanal</b></td>
+              <td id="sumPratica">0 h</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:.5rem; margin-top:.75rem;">
+      <button class="btn" id="btnSalvarAgenda">Salvar Agenda</button>
+      <button class="btn btn-outline" id="btnRecarregarAgenda">Recarregar</button>
+    </div>
+
+    <small style="display:block; margin-top:.5rem; opacity:.8;">
+      Estes horários serão inseridos automaticamente nas tabelas do <b>Contrato de Aprendizagem</b>.
+    </small>
+  </div>
+</section>
+
+
 
     <!-- Visão geral: tabela e gráficos -->
     <section id="visaoGeral" style="display:none;">
@@ -212,6 +276,107 @@
   let allCompanies = [];
   let companiesById = {};
 
+  // ---------- utilitários agenda ----------
+  const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira'];
+  const pad = n => String(n).padStart(2,'0');
+  function diffHoras(hhmmIni, hhmmFim){
+    if(!hhmmIni || !hhmmFim) return 0;
+    const [hi, mi] = hhmmIni.split(':').map(Number);
+    const [hf, mf] = hhmmFim.split(':').map(Number);
+    const ini = hi*60+mi, fim = hf*60+mf;
+    const min = Math.max(0, fim-ini);
+    return Math.round((min/60)*100)/100; // horas com 2 casas
+  }
+
+  function linhaAgenda(tipo, dia, ini='13:00', fim='15:00'){
+    return `
+      <tr data-dia="${dia}" data-tipo="${tipo}">
+        <td>${DIAS[dia]}</td>
+        <td><input type="time" value="${ini}" data-role="ini" /></td>
+        <td><input type="time" value="${fim}" data-role="fim" /></td>
+        <td class="td-total">0 h</td>
+      </tr>
+    `;
+  }
+
+  function montarTabelasAgenda(agenda){
+    const tbT = $qs('#tbTeorica');
+    const tbP = $qs('#tbPratica');
+    if(!tbT || !tbP) return;
+
+    tbT.innerHTML = '';
+    tbP.innerHTML = '';
+
+    for(let d=0; d<5; d++){
+      const regT = agenda?.teorica?.find(x=>x.dia===d) || {dia:d, ini:'13:00', fim:'15:00'};
+      const regP = agenda?.pratica?.find(x=>x.dia===d) || {dia:d, ini:'07:00', fim:(d===4?'':'11:00')};
+      tbT.insertAdjacentHTML('beforeend', linhaAgenda('T', d, regT.ini||'', regT.fim||''));
+      tbP.insertAdjacentHTML('beforeend', linhaAgenda('P', d, regP.ini||'', regP.fim||''));
+    }
+
+    [...document.querySelectorAll('#tbTeorica input,#tbPratica input')].forEach(inp=>{
+      inp.addEventListener('change', recomputarTotaisAgenda);
+    });
+    recomputarTotaisAgenda();
+  }
+
+  function coletarAgenda(){
+    const parse = (tbodyId) => {
+      return [...document.querySelectorAll(`#${tbodyId} tr`)].map(tr=>{
+        const dia = parseInt(tr.dataset.dia);
+        const ini = tr.querySelector('input[data-role="ini"]').value;
+        const fim = tr.querySelector('input[data-role="fim"]').value;
+        return {dia, ini, fim};
+      }).filter(x => x.ini && x.fim);
+    };
+    return {
+      teorica: parse('tbTeorica'),
+      pratica: parse('tbPratica')
+    };
+  }
+
+  function recomputarTotaisAgenda(){
+    let sumT = 0, sumP = 0;
+    document.querySelectorAll('#tbTeorica tr').forEach(tr=>{
+      const ini = tr.querySelector('input[data-role="ini"]').value;
+      const fim = tr.querySelector('input[data-role="fim"]').value;
+      const h = diffHoras(ini, fim);
+      const td = tr.querySelector('.td-total'); if(td) td.textContent = `${h} h`;
+      sumT += h;
+    });
+    document.querySelectorAll('#tbPratica tr').forEach(tr=>{
+      const ini = tr.querySelector('input[data-role="ini"]').value;
+      const fim = tr.querySelector('input[data-role="fim"]').value;
+      const h = diffHoras(ini, fim);
+      const td = tr.querySelector('.td-total'); if(td) td.textContent = `${h} h`;
+      sumP += h;
+    });
+    const st = $qs('#sumTeorica'); if(st) st.textContent = `${sumT} h`;
+    const sp = $qs('#sumPratica'); if(sp) sp.textContent = `${sumP} h`;
+  }
+
+  async function carregarAgenda(id){
+    try{
+      const res = await fetch(`php/get_schedule.php?aluno_id=${encodeURIComponent(id)}`, {credentials:'same-origin'});
+      const j = await res.json().catch(()=>({success:false}));
+      if(j && j.success) return j.data;
+    }catch(e){}
+    return { teorica:[], pratica:[] };
+  }
+
+  async function salvarAgenda(id){
+    const agenda = coletarAgenda();
+    const res = await fetch('php/save_schedule.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      body: JSON.stringify({ aluno_id:id, agenda })
+    });
+    const j = await res.json();
+    if(!j.success) throw new Error(j.message||'Falha ao salvar agenda');
+    return true;
+  }
+
   // fetch
   async function fetchAllStudents(){
     const res = await fetch('php/get_students.php', { credentials: 'same-origin' });
@@ -242,7 +407,7 @@
 
     try {
       const aluno = await fetchStudentById(id);
-      if(!aluno){ infoAluno.innerHTML = '<div class="card">Aluno não encontrado.</div>'; return; }
+      if(!aluno){ infoAluno.innerHTML = '<div class="card">Aluno não encontrado.</div>'; if(acoesRapidas) acoesRapidas.style.display='none'; return; }
 
       let empresaNome = '-';
       if(aluno.empresa_nome) empresaNome = aluno.empresa_nome;
@@ -267,15 +432,101 @@
         <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
       `;
 
-      if(acoesRapidas) {
+      // ----- AÇÕES RÁPIDAS: recria a área com os novos botões (sem "Registrar Frequência")
+      if(acoesRapidas){
         acoesRapidas.style.display = 'block';
-        $qs('#btnPdf').onclick = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
+        acoesRapidas.innerHTML = `
+          <div class="card" style="flex:1; min-width:280px;">
+            <h3>Ações Rápidas</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
+              <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
+              <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
+              <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
+              <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
+            </div>
+            <small style="display:block; margin-top:.5rem; opacity:.8;">
+              Dica: edite os dados do aluno pelo botão <b>Editar</b> na lista geral antes de gerar os documentos.
+            </small>
+          </div>
+        `;
+
+        // liga PDF/Excel existentes
+        $qs('#btnPdf').onclick   = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
         $qs('#btnExcel').onclick = () => window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank');
       }
+
+      // ----- Insere o EDITOR DE AGENDA na página (logo após Ações Rápidas)
+      let editorAgenda = $qs('#editorAgenda');
+      if(!editorAgenda){
+        const sec = document.createElement('section');
+        sec.id = 'editorAgenda';
+        sec.style.display = 'none';
+        sec.style.marginTop = '1rem';
+        sec.innerHTML = `
+          <div class="card" style="flex:1; min-width:280px;">
+            <h3>Agenda do Programa (para o Contrato)</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+              <div>
+                <h4 style="margin:0 0 .5rem;">Aulas Teóricas</h4>
+                <table class="table" style="width:100%;">
+                  <thead><tr><th>Dia</th><th>Início</th><th>Fim</th><th>Total diário</th></tr></thead>
+                  <tbody id="tbTeorica"></tbody>
+                  <tfoot><tr><td colspan="3" style="text-align:right;"><b>Total semanal</b></td><td id="sumTeorica">0 h</td></tr></tfoot>
+                </table>
+              </div>
+              <div>
+                <h4 style="margin:0 0 .5rem;">Atividades Práticas</h4>
+                <table class="table" style="width:100%;">
+                  <thead><tr><th>Dia</th><th>Início</th><th>Fim</th><th>Total diário</th></tr></thead>
+                  <tbody id="tbPratica"></tbody>
+                  <tfoot><tr><td colspan="3" style="text-align:right;"><b>Total semanal</b></td><td id="sumPratica">0 h</td></tr></tfoot>
+                </table>
+              </div>
+            </div>
+            <div style="display:flex; gap:.5rem; margin-top:.75rem;">
+              <button class="btn" id="btnSalvarAgenda">Salvar Agenda</button>
+              <button class="btn btn-outline" id="btnRecarregarAgenda">Recarregar</button>
+            </div>
+            <small style="display:block; margin-top:.5rem; opacity:.8;">
+              Estes horários serão inseridos automaticamente nas tabelas do <b>Contrato de Aprendizagem</b>.
+            </small>
+          </div>
+        `;
+        // coloca após acoesRapidas ou no fim do main
+        if(acoesRapidas && acoesRapidas.parentElement){
+          acoesRapidas.parentElement.insertBefore(sec, acoesRapidas.nextSibling);
+        } else {
+          document.body.appendChild(sec);
+        }
+        editorAgenda = sec;
+      }
+
+      // mostrar editor e carregar dados
+      editorAgenda.style.display = 'block';
+      const agenda = await carregarAgenda(id);
+      montarTabelasAgenda(agenda);
+
+      const btnSalvarAgenda = $qs('#btnSalvarAgenda');
+      const btnRecarregarAgenda = $qs('#btnRecarregarAgenda');
+      if(btnSalvarAgenda) btnSalvarAgenda.onclick = async ()=>{
+        try { await salvarAgenda(id); alert('Agenda salva.'); }
+        catch(e){ alert('Erro ao salvar: '+e.message); }
+      };
+      if(btnRecarregarAgenda) btnRecarregarAgenda.onclick = async ()=>{
+        const ag = await carregarAgenda(id);
+        montarTabelasAgenda(ag);
+      };
+
+      // ligar geração dos documentos
+      const btnContrato = $qs('#btnGerarContrato');
+      const btnDecl = $qs('#btnGerarDeclaracao');
+      if(btnContrato) btnContrato.onclick = ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank');
+      if(btnDecl)     btnDecl.onclick     = ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank');
 
     } catch(err){
       infoAluno.innerHTML = `<div class="card">Erro: ${err.message}</div>`;
       if(acoesRapidas) acoesRapidas.style.display = 'none';
+      const ed = $qs('#editorAgenda'); if(ed) ed.style.display='none';
     }
   }
 
@@ -287,19 +538,20 @@
     const cursoSel  = $qs('#filterCurso');
     const escolaSel = $qs('#filterEscola');
 
-    cursoSel.innerHTML  = '<option value="">Todos</option>';
-    escolaSel.innerHTML = '<option value="">Todos</option>';
+    if(cursoSel)  cursoSel.innerHTML  = '<option value="">Todos</option>';
+    if(escolaSel) escolaSel.innerHTML = '<option value="">Todos</option>';
 
     uniqueValues(list, 'curso').forEach(c => {
-      const o = document.createElement('option'); o.value = c; o.textContent = c; cursoSel.appendChild(o);
+      const o = document.createElement('option'); o.value = c; o.textContent = c; if(cursoSel) cursoSel.appendChild(o);
     });
     uniqueValues(list, 'escola').forEach(c => {
-      const o = document.createElement('option'); o.value = c; o.textContent = c; escolaSel.appendChild(o);
+      const o = document.createElement('option'); o.value = c; o.textContent = c; if(escolaSel) escolaSel.appendChild(o);
     });
   }
 
   function renderTable(list){
     const tbody = $qs('#studentsTable tbody');
+    if(!tbody) return;
     if(!list.length){
       tbody.innerHTML = '<tr><td colspan="8">Nenhum aluno encontrado</td></tr>';
       return;
@@ -330,9 +582,7 @@
   }
 
   function safeDestroyChart(idRef, instanceRefName){
-    // tenta v4
     let inst = (window.Chart && Chart.getChart) ? Chart.getChart(idRef) : null;
-    // fallback em variável global se existir
     if (!inst && window[instanceRefName]) inst = window[instanceRefName];
     if (inst && typeof inst.destroy === 'function') inst.destroy();
   }
@@ -344,45 +594,47 @@
     const cursos = uniqueValues(list, 'curso');
     const cursoCounts = cursos.map(c => list.filter(x => x.curso === c).length);
 
-    // Estagiando (apenas cursos obrigatórios) — com × sem bolsa
     const estagiando = list.filter(x => String(x.tipo_contrato||'') === 'Estágio');
     const estagiandoObrig = estagiando.filter(x => OBRIGATORIOS.has(String(x.curso||'').trim()));
     const comBolsa  = estagiandoObrig.filter(x => Number(x.recebeu_bolsa) === 1).length;
     const semBolsa  = estagiandoObrig.filter(x => Number(x.recebeu_bolsa) === 0).length;
 
-    // Status
     safeDestroyChart('chartStatus', 'chartStatus');
-    const ctxS = $qs('#chartStatus').getContext('2d');
-    chartStatus = new Chart(ctxS, {
-      type:'doughnut',
-      data: { labels: statuses, datasets:[{ data: statusCounts }]},
-      options:{ responsive:true }
-    });
+    const ctxS = $qs('#chartStatus')?.getContext?.('2d');
+    if(ctxS){
+      chartStatus = new Chart(ctxS, {
+        type:'doughnut',
+        data: { labels: statuses, datasets:[{ data: statusCounts }]},
+        options:{ responsive:true }
+      });
+    }
 
-    // Alunos por curso
     safeDestroyChart('chartCurso', 'chartCurso');
-    const ctxC = $qs('#chartCurso').getContext('2d');
-    chartCurso = new Chart(ctxC, {
-      type:'bar',
-      data:{ labels: cursos, datasets:[{ label:'Alunos', data: cursoCounts }]},
-      options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }}}}
-    });
+    const ctxC = $qs('#chartCurso')?.getContext?.('2d');
+    if(ctxC){
+      chartCurso = new Chart(ctxC, {
+        type:'bar',
+        data:{ labels: cursos, datasets:[{ label:'Alunos', data: cursoCounts }]},
+        options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }}}}
+      });
+    }
 
-    // Estágio — Bolsa x Sem Bolsa
     safeDestroyChart('chartEstagioBolsa', 'chartEstagioBolsa');
-    const ctxE = $qs('#chartEstagioBolsa').getContext('2d');
-    window.chartEstagioBolsa = new Chart(ctxE, {
-      type:'doughnut',
-      data:{ labels:['Com bolsa','Sem bolsa'], datasets:[{ data:[comBolsa, semBolsa] }]},
-      options:{ responsive:true }
-    });
+    const ctxE = $qs('#chartEstagioBolsa')?.getContext?.('2d');
+    if(ctxE){
+      window.chartEstagioBolsa = new Chart(ctxE, {
+        type:'doughnut',
+        data:{ labels:['Com bolsa','Sem bolsa'], datasets:[{ data:[comBolsa, semBolsa] }]},
+        options:{ responsive:true }
+      });
+    }
   }
 
   function applyFilters(){
-    const status = $qs('#filterStatus').value;
-    const curso  = $qs('#filterCurso').value;
-    const escola = $qs('#filterEscola').value;
-    const q = ($qs('#filterSearch').value || '').trim().toLowerCase();
+    const status = $qs('#filterStatus')?.value || '';
+    const curso  = $qs('#filterCurso')?.value || '';
+    const escola = $qs('#filterEscola')?.value || '';
+    const q = ($qs('#filterSearch')?.value || '').trim().toLowerCase();
 
     let filtered = allStudents.slice();
     if(status) filtered = filtered.filter(x => x.status === status);
@@ -457,7 +709,7 @@
 
     $qs('#editModal').style.display = 'block';
   }
-  const closeEditModal = ()=>{ $qs('#editModal').style.display = 'none'; };
+  const closeEditModal = ()=>{ const m=$qs('#editModal'); if(m) m.style.display = 'none'; };
 
   async function saveEdit(){
     const empresaVal = $qs('#edit_empresa').value;
@@ -514,10 +766,6 @@
     }
   }
 
-  function registrarFrequencia(id){
-    alert('Registrar frequência para aluno ID: ' + id);
-  }
-
   // ---------- init ----------
   (async function init(){
     try {
@@ -534,10 +782,10 @@
       await renderIndividual(idParam);
     } else {
       pageTitle.textContent = 'Dashboard Geral';
-      controlsSection.style.display = 'block';
-      visaoGeral.style.display = 'block';
-      infoAluno.style.display = 'none';
-      if(acoesRapidas) acoesRapidas.style.display = 'none';
+      if(controlsSection) controlsSection.style.display = 'block';
+      if(visaoGeral)      visaoGeral.style.display = 'block';
+      if(infoAluno)       infoAluno.style.display = 'none';
+      if(acoesRapidas)    acoesRapidas.style.display = 'none';
 
       try {
         const raw = await fetchAllStudents();
@@ -571,27 +819,29 @@
         renderTable(allStudents);
         renderCharts(allStudents);
 
-        $qs('#filterStatus').addEventListener('change', applyFilters);
-        $qs('#filterCurso').addEventListener('change', applyFilters);
-        $qs('#filterEscola').addEventListener('change', applyFilters);
-        $qs('#filterSearch').addEventListener('input', applyFilters);
-        $qs('#btnClearFilters').addEventListener('click', ()=>{
-          $qs('#filterStatus').value = '';
-          $qs('#filterCurso').value  = '';
-          $qs('#filterEscola').value = '';
-          $qs('#filterSearch').value = '';
+        $qs('#filterStatus')?.addEventListener('change', applyFilters);
+        $qs('#filterCurso')?.addEventListener('change', applyFilters);
+        $qs('#filterEscola')?.addEventListener('change', applyFilters);
+        $qs('#filterSearch')?.addEventListener('input', applyFilters);
+        $qs('#btnClearFilters')?.addEventListener('click', ()=>{
+          if($qs('#filterStatus')) $qs('#filterStatus').value = '';
+          if($qs('#filterCurso'))  $qs('#filterCurso').value  = '';
+          if($qs('#filterEscola')) $qs('#filterEscola').value = '';
+          if($qs('#filterSearch')) $qs('#filterSearch').value = '';
           applyFilters();
         });
 
-        $qs('#cancelEdit').addEventListener('click', closeEditModal);
-        $qs('#saveEdit').addEventListener('click', saveEdit);
+        $qs('#cancelEdit')?.addEventListener('click', closeEditModal);
+        $qs('#saveEdit')?.addEventListener('click', saveEdit);
 
       } catch(err){
-        $qs('#studentsTable tbody').innerHTML = `<tr><td colspan="8">Erro: ${err.message}</td></tr>`;
+        const tb = $qs('#studentsTable tbody');
+        if(tb) tb.innerHTML = `<tr><td colspan="8">Erro: ${err.message}</td></tr>`;
       }
     }
   })();
-  </script>
+</script>
+
 
   <style>
     .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); }

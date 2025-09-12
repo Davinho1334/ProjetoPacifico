@@ -1,57 +1,41 @@
 <?php
-// php/auth_admin.php  (SUBSTITUIR COMPLETO)
+// php/auth_admin.php
 declare(strict_types=1);
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-  session_start();
+    session_start();
 }
 
-/*
- * ✅ Modo DEV opcional (libera SOMENTE em localhost)
- *   - Para ativar, crie um arquivo vazio php/.dev_allow  OU
- *   - defina a variável de ambiente DEV_EXPORT_ALLOW=1
- *   - NUNCA use isso em produção.
- */
-$isLocalhost = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
-$devAllow = $isLocalhost && (
-  !empty($_ENV['DEV_EXPORT_ALLOW']) ||
-  file_exists(__DIR__ . '/.dev_allow')
+// Impede cache do navegador (evita mostrar dashboard "fantasma" após logout)
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
+// Heurística para detectar chamadas AJAX/fetch
+$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+$xrw    = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
+$secMode= $_SERVER['HTTP_SEC_FETCH_MODE'] ?? ''; // "navigate" quando é navegação normal
+
+$isAjax = (
+    stripos($accept, 'application/json') !== false
+    || $xrw === 'xmlhttprequest'
+    || ($secMode && strtolower($secMode) !== 'navigate')
 );
 
-/*
- * ✅ Heurística de autenticação de admin (aceita várias convenções).
- * Ajuste conforme seu projeto. A ideia é NÃO travar você enquanto
- * descobrimos qual flag sua app usa.
- */
-$role = strtolower((string)(
-  $_SESSION['user_role'] ??
-  $_SESSION['role'] ??
-  $_SESSION['perfil'] ??
-  ''
-));
+// Verifica sessão de admin
+$logged = !empty($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
 
-$anyAdminKey = false;
-foreach ($_SESSION as $k => $v) {
-  if (stripos((string)$k, 'admin') !== false && !empty($v)) {
-    $anyAdminKey = true;
-    break;
-  }
+if (!$logged) {
+    if ($isAjax) {
+        http_response_code(401);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'Não autorizado']);
+        exit;
+    }
+    // Navegação normal → redireciona para o login
+    header('Location: ../admin_login.html', true, 302);
+    exit;
 }
 
-$isAdmin =
-  // flags mais comuns
-  !empty($_SESSION['admin_logged_in']) ||
-  !empty($_SESSION['admin']) ||
-  !empty($_SESSION['is_admin']) ||
-  !empty($_SESSION['admin_login']) ||
-  // objetos/arrays típicos
-  (!empty($_SESSION['usuario']['is_admin'] ?? null)) ||
-  ($role === 'admin') ||
-  $anyAdminKey;
-
-if (!$isAdmin && !$devAllow) {
-  http_response_code(401);
-  echo 'Não autorizado';
-  exit;
-}
+// Se chegou aqui, está autenticado; páginas/endereços que incluem este arquivo podem seguir normalmente.
 ?>

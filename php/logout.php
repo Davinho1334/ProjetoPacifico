@@ -1,28 +1,50 @@
 <?php
 // php/logout.php
-session_start();
+declare(strict_types=1);
 
-// limpa variáveis da sessão
-$_SESSION = [];
-session_unset();
-
-// apaga cookie da sessão
-if (ini_get('session.use_cookies')) {
-  $p = session_get_cookie_params();
-  setcookie(session_name(), '', time() - 42000, $p['path'] ?: '/', $p['domain'] ?: '', $p['secure'] ?: false, $p['httponly'] ?: true);
-}
-
-// destrói a sessão
-session_destroy();
-
-// evita cache
+// Sempre responda JSON e nunca deixe o browser cachear essa resposta
+header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
-header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+header('Expires: 0');
 
-// pode responder 204 (sem corpo) ou JSON
-http_response_code(204);
-// se preferir JSON, troque a linha acima por:
-// header('Content-Type: application/json'); echo json_encode(['success'=>true]);
-exit;
+// Aceita POST (recomendado) e GET (fallback)
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if (!in_array($method, ['POST','GET'], true)) {
+  http_response_code(405);
+  echo json_encode(['success' => false, 'message' => 'Método não permitido']);
+  exit;
+}
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
+}
+
+// Limpa variáveis da sessão
+$_SESSION = [];
+
+// Invalida o cookie da sessão, se existir
+if (ini_get('session.use_cookies')) {
+  $params = session_get_cookie_params();
+  setcookie(
+    session_name(),
+    '',
+    [
+      'expires'  => time() - 42000,
+      'path'     => $params['path'],
+      'domain'   => $params['domain'],
+      'secure'   => $params['secure'],
+      'httponly' => $params['httponly'],
+      'samesite' => $params['samesite'] ?? 'Lax',
+    ]
+  );
+}
+
+// Destroi a sessão no servidor
+session_destroy();
+
+// (Opcional) Se você usa cookies extras de autenticação, limpe-os aqui
+// setcookie('remember_me', '', time() - 3600, '/');
+
+echo json_encode(['success' => true, 'message' => 'Logout efetuado']);
 ?>

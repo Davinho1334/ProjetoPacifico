@@ -59,131 +59,151 @@
     </section>
   </main>
 
-  <script>
-    const studentsTableBody = document.querySelector('#studentsTable tbody');
-    const statusFilter = document.getElementById('statusFilter');
-    const searchInput = document.getElementById('searchInput');
-    const dashboardCards = document.getElementById('dashboardCards');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const clearBtn = document.getElementById('clearBtn');
+<script>
+  const studentsTableBody = document.querySelector('#studentsTable tbody');
+  const statusFilter = document.getElementById('statusFilter');
+  const searchInput = document.getElementById('searchInput');
+  const dashboardCards = document.getElementById('dashboardCards');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const clearBtn = document.getElementById('clearBtn');
 
-    let allStudents = [];
+  let allStudents = [];
 
-    // Busca alunos e verifica sessão
-    async function fetchStudents() {
-      try {
-        const res = await fetch('php/get_students.php', { credentials: 'same-origin' });
-        const json = await res.json();
-        if (json.success) {
-          allStudents = json.data;
-          renderStudents(allStudents);
-          renderDashboard(allStudents);
-        } else {
-          // Se não autorizado, redireciona para login
-          if (json.message === 'Não autorizado') {
-            alert('Você precisa estar logado como administrador.');
-            location.href = 'admin_login.html';
-            return;
-          }
-          studentsTableBody.innerHTML = '<tr><td colspan="7">Erro ao buscar alunos</td></tr>';
-        }
-      } catch (e) {
-        studentsTableBody.innerHTML = '<tr><td colspan="7">Erro de rede</td></tr>';
-      }
-    }
-
-    function renderStudents(list) {
-      const rows = list.map(s => `
-        <tr>
-          <td>${s.ra ?? ''}</td>
-          <td><a href="#" class="aluno-link" data-id="${s.id}">${s.nome}</a></td>
-          <td>${s.cpf}</td>
-          <td>${s.curso}</td>
-          <td>${s.turno}</td>
-          <td>${s.serie}</td>
-          <td>${s.status}</td>
-        </tr>
-      `).join('');
-      studentsTableBody.innerHTML = rows || '<tr><td colspan="7">Nenhum aluno cadastrado</td></tr>';
-
-      document.querySelectorAll('.aluno-link').forEach(a => {
-        a.addEventListener('click', e => {
-          e.preventDefault();
-          const id = a.dataset.id;
-          location.href = `aluno_dashboard.html?id=${id}`;
-        });
+  // Busca alunos e verifica sessão
+  async function fetchStudents() {
+    try {
+      const res = await fetch('php/get_students.php', {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
       });
-    }
 
-    function renderDashboard(list) {
-      const total = list.length;
-      const porStatus = {};
-      ['Em andamento', 'Encerrado', 'Ativo', 'Disponível'].forEach(s => porStatus[s] = list.filter(x => x.status === s).length);
-      dashboardCards.innerHTML = `
-        <div class="card">Total de alunos: <strong>${total}</strong></div>
-        <div class="card">Em andamento: <strong>${porStatus['Em andamento']}</strong></div>
-        <div class="card">Encerrados: <strong>${porStatus['Encerrado']}</strong></div>
-        <div class="card">Ativos: <strong>${porStatus['Ativo']}</strong></div>
-        <div class="card">Disponíveis: <strong>${porStatus['Disponível']}</strong></div>
-      `;
-    }
-
-    function applyFilters() {
-      const status = statusFilter.value;
-      const q = (searchInput.value || '').trim().toLowerCase();
-      let filtered = allStudents.slice();
-      if (status) filtered = filtered.filter(s => s.status === status);
-      if (q) {
-        filtered = filtered.filter(s =>
-          (s.nome || '').toLowerCase().includes(q) ||
-          (s.cpf || '').toLowerCase().includes(q) ||
-          (s.ra || '').toLowerCase().includes(q)
-        );
+      // Se a sessão expirou, o auth_admin.php deve retornar 401 + JSON
+      if (res.status === 401) {
+        alert('Você precisa estar logado como administrador.');
+        location.href = 'admin_login.html';
+        return;
       }
-      renderStudents(filtered);
+
+      // Garante que tratamos respostas não-JSON com uma mensagem útil
+      const raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); }
+      catch {
+        studentsTableBody.innerHTML = '<tr><td colspan="7">Resposta inesperada do servidor</td></tr>';
+        console.warn('Resposta do servidor:', raw);
+        return;
+      }
+
+      if (json.success) {
+        allStudents = json.data;
+        renderStudents(allStudents);
+        renderDashboard(allStudents);
+      } else {
+        if ((json.message || '').toLowerCase().includes('não autorizado')) {
+          alert('Você precisa estar logado como administrador.');
+          location.href = 'admin_login.html';
+          return;
+        }
+        studentsTableBody.innerHTML = '<tr><td colspan="7">Erro ao buscar alunos</td></tr>';
+      }
+    } catch (e) {
+      studentsTableBody.innerHTML = '<tr><td colspan="7">Erro de rede</td></tr>';
+      console.error(e);
     }
-
-    statusFilter.addEventListener('change', applyFilters);
-    searchInput.addEventListener('input', applyFilters);
-    clearBtn.addEventListener('click', () => {
-      statusFilter.value = '';
-      searchInput.value = '';
-      applyFilters();
-    });
-
-    logoutBtn.addEventListener('click', async () => {
-  await fetch('php/logout.php', { credentials: 'same-origin' });
-  location.href = 'index.html';
-});
-    logoutBtn.addEventListener('click', async (e) => {
-  e.preventDefault();
-  try {
-    // Use POST e inclua credenciais para enviar o cookie de sessão
-    await fetch('php/logout.php', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Cache-Control': 'no-store' }
-    });
-  } catch (err) {
-    // mesmo que falhe, vamos limpar o front e prosseguir
-    console.warn('Falha ao chamar logout.php', err);
   }
 
-  // limpa qualquer dado do navegador (caso você use)
-  sessionStorage.clear();
-  localStorage.clear();
+  function renderStudents(list) {
+    const rows = list.map(s => `
+      <tr>
+        <td>${s.ra ?? ''}</td>
+        <td><a href="#" class="aluno-link" data-id="${s.id}">${s.nome}</a></td>
+        <td>${s.cpf}</td>
+        <td>${s.curso}</td>
+        <td>${s.turno}</td>
+        <td>${s.serie}</td>
+        <td>${s.status}</td>
+      </tr>
+    `).join('');
+    studentsTableBody.innerHTML = rows || '<tr><td colspan="7">Nenhum aluno cadastrado</td></tr>';
 
-  // evita que o usuário “volte” pro dashboard pelo histórico
-  location.replace('index.html');
-});
+    document.querySelectorAll('.aluno-link').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const id = a.dataset.id;
+        location.href = `aluno_dashboard.html?id=${id}`;
+      });
+    });
+  }
 
-// evita que o browser mostre página em cache ao voltar
-window.addEventListener('pageshow', (e) => {
-  if (e.persisted) location.reload();
-});
+  function renderDashboard(list) {
+    const total = list.length;
+    const porStatus = {};
+    ['Em andamento', 'Encerrado', 'Ativo', 'Disponível'].forEach(s => {
+      porStatus[s] = list.filter(x => x.status === s).length;
+    });
+    dashboardCards.innerHTML = `
+      <div class="card">Total de alunos: <strong>${total}</strong></div>
+      <div class="card">Em andamento: <strong>${porStatus['Em andamento']}</strong></div>
+      <div class="card">Encerrados: <strong>${porStatus['Encerrado']}</strong></div>
+      <div class="card">Ativos: <strong>${porStatus['Ativo']}</strong></div>
+      <div class="card">Disponíveis: <strong>${porStatus['Disponível']}</strong></div>
+    `;
+  }
 
-    // Inicialização
+  function applyFilters() {
+    const status = statusFilter.value;
+    const q = (searchInput.value || '').trim().toLowerCase();
+    let filtered = allStudents.slice();
+    if (status) filtered = filtered.filter(s => s.status === status);
+    if (q) {
+      filtered = filtered.filter(s =>
+        (s.nome || '').toLowerCase().includes(q) ||
+        (s.cpf || '').toLowerCase().includes(q) ||
+        (s.ra || '').toLowerCase().includes(q)
+      );
+    }
+    renderStudents(filtered);
+  }
+
+  statusFilter.addEventListener('change', applyFilters);
+  searchInput.addEventListener('input', applyFilters);
+  clearBtn.addEventListener('click', () => {
+    statusFilter.value = '';
+    searchInput.value = '';
+    applyFilters();
+  });
+
+  // Logout ajustado
+  logoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('php/logout.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Cache-Control': 'no-store' }
+      });
+      // não precisamos do JSON aqui; vamos redirecionar de qualquer forma
+      await res.text().catch(() => null);
+    } catch (err) {
+      console.warn('Falha ao chamar logout.php', err);
+    } finally {
+      sessionStorage.clear();
+      localStorage.clear();
+      location.replace('index.html');
+    }
+  });
+
+  // Evita que o browser mostre cache ao voltar
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) location.reload();
+  });
+
+  // Carregamento inicial
+  document.addEventListener('DOMContentLoaded', () => {
     fetchStudents();
-  </script>
+  });
+</script>
+
+
 </body>
 </html>
