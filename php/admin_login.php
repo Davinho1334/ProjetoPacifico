@@ -31,6 +31,10 @@ try {
     $_SESSION['admin_id']  = $adm['id'];
     $_SESSION['admin_cpf'] = $adm['cpf'];
     $_SESSION['admin_nome']= $adm['nome'];
+    // após validar as credenciais do admin:
+    session_start();
+    $_SESSION['admin_logged_in'] = true; // ou $_SESSION['admin']=true; ou $_SESSION['user_role']='admin';
+
 
     echo json_encode(['success'=>true,'message'=>'Login realizado.']);
 } catch (Throwable $e) {
