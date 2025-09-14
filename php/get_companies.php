@@ -1,30 +1,38 @@
 <?php
-// php/get_companies.php
-header('Content-Type: application/json; charset=utf-8');
+require __DIR__.'/api_boot.php';
+require __DIR__.'/db.php';
 
-require_once __DIR__ . '/db.php'; // precisa expor $pdo (PDO conectado)
+$pdo = pdo();
 
-try {
-    $stmt = $pdo->query("
-        SELECT id, razao_social, cnpj, tipo_contrato
-        FROM empresas
-        ORDER BY razao_social ASC
-    ");
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$sql = "
+  SELECT 
+    id,
+    COALESCE(nome, razao_social) AS nome,
+    cnpj,
+    logradouro, numero, complemento, bairro, cidade, uf, cep,
+    telefone,
+    tipo_contrato
+  FROM empresas
+  ORDER BY nome IS NULL, nome
+";
+$rows = $pdo->query($sql)->fetchAll();
 
-    // O dashboard aceita 'nome' OU 'razao_social'
-    $data = array_map(function($r){
-        return [
-            'id'            => (int)$r['id'],
-            'razao_social'  => $r['razao_social'],
-            'nome'          => $r['razao_social'], // alias para compatibilidade
-            'cnpj'          => $r['cnpj'],
-            'tipo_contrato' => $r['tipo_contrato'],
-        ];
-    }, $rows);
+$data = array_map(function($r){
+  return [
+    'id'   => (string)$r['id'],
+    'nome' => (string)($r['nome'] ?? ('Empresa '.$r['id'])),
+    'cnpj' => $r['cnpj'] ?? null,
+    'logradouro' => $r['logradouro'] ?? null,
+    'numero'     => $r['numero'] ?? null,
+    'complemento'=> $r['complemento'] ?? null,
+    'bairro'     => $r['bairro'] ?? null,
+    'cidade'     => $r['cidade'] ?? null,
+    'uf'         => $r['uf'] ?? null,
+    'cep'        => $r['cep'] ?? null,
+    'telefone'   => $r['telefone'] ?? null,
+    'tipo_contrato' => $r['tipo_contrato'] ?? null,
+  ];
+}, $rows);
 
-    echo json_encode(['success'=>true,'data'=>$data]);
-} catch (PDOException $e) {
-    echo json_encode(['success'=>false,'message'=>'Erro ao listar empresas','error'=>$e->getMessage()]);
-}
+api_out(true, $data, null);
 ?>

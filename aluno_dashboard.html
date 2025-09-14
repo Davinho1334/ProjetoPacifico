@@ -243,6 +243,30 @@
             </label>
           </div>
 
+          <!-- Salário (condicional) -->
+          <div id="wrap_recebe_salario" style="display:none;">
+            <label>Recebe salário? (apenas Estágio)<br>
+              <select id="edit_recebe_salario">
+                <option value="">Selecione...</option>
+                <option value="1">Sim</option>
+                <option value="0">Não</option>
+              </select>
+            </label>
+          </div>
+          <div id="wrap_salario_valor" style="display:none;">
+            <label>Valor do salário (R$)<br>
+              <input id="edit_salario" type="number" min="0" step="0.01" placeholder="Ex.: 700.00">
+            </label>
+          </div>
+
+  </label>
+
+
+<!-- CBO somente leitura (opcional) -->
+<label for="edit_cbo">CBO</label>
+<input id="edit_cbo" type="text" class="input" readonly />
+
+
           <div style="margin-top:0.75rem;">
             <button type="button" id="saveEdit" class="btn">Salvar</button>
             <button type="button" id="cancelEdit" class="btn btn-outline">Cancelar</button>
@@ -329,10 +353,7 @@
         return {dia, ini, fim};
       }).filter(x => x.ini && x.fim);
     };
-    return {
-      teorica: parse('tbTeorica'),
-      pratica: parse('tbPratica')
-    };
+    return { teorica: parse('tbTeorica'), pratica: parse('tbPratica') };
   }
 
   function recomputarTotaisAgenda(){
@@ -377,7 +398,7 @@
     return true;
   }
 
-  // fetch
+  // ---------- fetch ----------
   async function fetchAllStudents(){
     const res = await fetch('php/get_students.php', { credentials: 'same-origin' });
     const json = await res.json();
@@ -390,12 +411,69 @@
     if(!json.success) throw new Error(json.message || 'Erro ao buscar aluno');
     return json.data;
   }
-  async function fetchCompanies(){
-    const res = await fetch('php/get_companies.php', { credentials: 'same-origin' });
-    const json = await res.json();
-    if(!json.success) throw new Error(json.message || 'Erro ao buscar empresas');
-    return json.data;
+  // Busca empresas do back-end e normaliza os campos (id, nome)
+async function fetchCompanies(){
+  const res = await fetch('php/get_companies.php', { credentials: 'same-origin' });
+  const json = await res.json().catch(()=>({success:false, data:[]}));
+  if(!json || json.success === false){
+    console.warn('get_companies.php retornou erro ou payload inesperado:', json);
+    return [];
   }
+
+  // Aceita várias chaves comuns e normaliza
+  const arr = Array.isArray(json.data) ? json.data : [];
+  const norm = arr.map((c) => {
+    const id =
+      c.id ?? c.ID ?? c.Id ?? c.empresa_id ?? c.company_id ?? null;
+
+    const nome =
+      c.nome ??
+      c.razao_social ??
+      c.fantasia ??
+      c.company_name ??
+      c.name ??
+      (id != null ? `Empresa ${id}` : '');
+
+    return { id: id != null ? String(id) : null, nome: String(nome || '').trim() };
+  })
+  // remove inválidos
+  .filter(c => c.id !== null && c.nome.length > 0);
+
+  // remove duplicados por id
+  const seen = new Set();
+  const dedup = [];
+  for(const c of norm){
+    if(!seen.has(c.id)){ seen.add(c.id); dedup.push(c); }
+  }
+
+  // ordena por nome
+  dedup.sort((a,b)=> a.nome.localeCompare(b.nome, 'pt-BR', {sensitivity:'base'}));
+  return dedup;
+}
+
+
+  // ---------- filtros (definido cedo e exposto ao window) ----------
+  function applyFilters(){
+    const status = $qs('#filterStatus')?.value || '';
+    const curso  = $qs('#filterCurso')?.value || '';
+    const escola = $qs('#filterEscola')?.value || '';
+    const q = ($qs('#filterSearch')?.value || '').trim().toLowerCase();
+
+    let filtered = allStudents.slice();
+    if(status) filtered = filtered.filter(x => x.status === status);
+    if(curso)  filtered = filtered.filter(x => x.curso === curso);
+    if(escola) filtered = filtered.filter(x => x.escola === escola);
+    if(q) filtered = filtered.filter(x =>
+      (x.nome||'').toLowerCase().includes(q) ||
+      (x.cpf||'').toLowerCase().includes(q)  ||
+      (x.ra||'').toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+    renderCharts(filtered);
+  }
+  // expõe imediatamente para handlers inline e cria um wrapper seguro
+  window.applyFilters = applyFilters;
+  const safeApplyFilters = ()=> { try{ window.applyFilters(); }catch(e){ /* evita quebrar o init */ } };
 
   // ---------- visão individual ----------
   async function renderIndividual(id){
@@ -432,7 +510,7 @@
         <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
       `;
 
-      // ----- AÇÕES RÁPIDAS: recria a área com os novos botões (sem "Registrar Frequência")
+      // Ações Rápidas
       if(acoesRapidas){
         acoesRapidas.style.display = 'block';
         acoesRapidas.innerHTML = `
@@ -449,13 +527,11 @@
             </small>
           </div>
         `;
-
-        // liga PDF/Excel existentes
         $qs('#btnPdf').onclick   = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
         $qs('#btnExcel').onclick = () => window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank');
       }
 
-      // ----- Insere o EDITOR DE AGENDA na página (logo após Ações Rápidas)
+      // Editor de Agenda
       let editorAgenda = $qs('#editorAgenda');
       if(!editorAgenda){
         const sec = document.createElement('section');
@@ -492,7 +568,6 @@
             </small>
           </div>
         `;
-        // coloca após acoesRapidas ou no fim do main
         if(acoesRapidas && acoesRapidas.parentElement){
           acoesRapidas.parentElement.insertBefore(sec, acoesRapidas.nextSibling);
         } else {
@@ -501,27 +576,22 @@
         editorAgenda = sec;
       }
 
-      // mostrar editor e carregar dados
       editorAgenda.style.display = 'block';
       const agenda = await carregarAgenda(id);
       montarTabelasAgenda(agenda);
 
-      const btnSalvarAgenda = $qs('#btnSalvarAgenda');
-      const btnRecarregarAgenda = $qs('#btnRecarregarAgenda');
-      if(btnSalvarAgenda) btnSalvarAgenda.onclick = async ()=>{
+      $qs('#btnSalvarAgenda')?.addEventListener('click', async ()=>{
         try { await salvarAgenda(id); alert('Agenda salva.'); }
         catch(e){ alert('Erro ao salvar: '+e.message); }
-      };
-      if(btnRecarregarAgenda) btnRecarregarAgenda.onclick = async ()=>{
+      });
+      $qs('#btnRecarregarAgenda')?.addEventListener('click', async ()=>{
         const ag = await carregarAgenda(id);
         montarTabelasAgenda(ag);
-      };
+      });
 
-      // ligar geração dos documentos
-      const btnContrato = $qs('#btnGerarContrato');
-      const btnDecl = $qs('#btnGerarDeclaracao');
-      if(btnContrato) btnContrato.onclick = ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank');
-      if(btnDecl)     btnDecl.onclick     = ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank');
+      // gerar documentos
+      $qs('#btnGerarContrato')?.addEventListener('click', ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank'));
+      $qs('#btnGerarDeclaracao')?.addEventListener('click', ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank'));
 
     } catch(err){
       infoAluno.innerHTML = `<div class="card">Erro: ${err.message}</div>`;
@@ -531,16 +601,13 @@
   }
 
   // ---------- visão geral ----------
-  const uniqueValues = (arr, key)=>
-    Array.from(new Set(arr.map(x => x[key]).filter(Boolean))).sort();
+  const uniqueValues = (arr, key)=> Array.from(new Set(arr.map(x => x[key]).filter(Boolean))).sort();
 
   function buildFiltersUI(list){
     const cursoSel  = $qs('#filterCurso');
     const escolaSel = $qs('#filterEscola');
-
     if(cursoSel)  cursoSel.innerHTML  = '<option value="">Todos</option>';
     if(escolaSel) escolaSel.innerHTML = '<option value="">Todos</option>';
-
     uniqueValues(list, 'curso').forEach(c => {
       const o = document.createElement('option'); o.value = c; o.textContent = c; if(cursoSel) cursoSel.appendChild(o);
     });
@@ -590,7 +657,6 @@
   function renderCharts(list){
     const statuses = ['Ativo','Em andamento','Encerrado','Disponível'];
     const statusCounts = statuses.map(s => list.filter(x => x.status === s).length);
-
     const cursos = uniqueValues(list, 'curso');
     const cursoCounts = cursos.map(c => list.filter(x => x.curso === c).length);
 
@@ -630,39 +696,45 @@
     }
   }
 
-  function applyFilters(){
-    const status = $qs('#filterStatus')?.value || '';
-    const curso  = $qs('#filterCurso')?.value || '';
-    const escola = $qs('#filterEscola')?.value || '';
-    const q = ($qs('#filterSearch')?.value || '').trim().toLowerCase();
+  // Empresas (garante popular o select mesmo sem cache)
+  // Popula o <select id="edit_empresa">; se não houver cache, busca antes
+function buildCompanySelect(selectedId = ""){
+  const sel = document.querySelector('#edit_empresa');
+  if(!sel) return;
 
-    let filtered = allStudents.slice();
-    if(status) filtered = filtered.filter(x => x.status === status);
-    if(curso)  filtered = filtered.filter(x => x.curso === curso);
-    if(escola) filtered = filtered.filter(x => x.escola === escola);
-    if(q) filtered = filtered.filter(x =>
-      (x.nome||'').toLowerCase().includes(q) ||
-      (x.cpf||'').toLowerCase().includes(q)  ||
-      (x.ra||'').toLowerCase().includes(q)
-    );
+  // placeholder enquanto carrega
+  sel.innerHTML = '<option value="">Carregando...</option>';
 
-    renderTable(filtered);
-    renderCharts(filtered);
-  }
-
-  // Empresas
-  function buildCompanySelect(selectedId = ""){
-    const sel = $qs('#edit_empresa');
-    if(!sel) return;
+  const fill = (list) => {
     sel.innerHTML = '<option value="">Selecione...</option>';
-    allCompanies.forEach(c => {
+    list.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
-      opt.textContent = c.nome || c.razao_social || c.name || `Empresa ${c.id}`;
+      opt.textContent = c.nome || `Empresa ${c.id}`;
       if(String(c.id) === String(selectedId)) opt.selected = true;
       sel.appendChild(opt);
     });
+  };
+
+  // Se já temos no cache, usa; senão busca
+  if (Array.isArray(allCompanies) && allCompanies.length){
+    fill(allCompanies);
+  } else {
+    fetchCompanies()
+      .then(list => {
+        allCompanies = list;
+        // mantém o dicionário auxiliar (usado em outras telas)
+        companiesById = {};
+        allCompanies.forEach(c => { companiesById[String(c.id)] = c.nome; });
+        fill(allCompanies);
+      })
+      .catch(err => {
+        console.error('Falha ao carregar empresas:', err);
+        sel.innerHTML = '<option value="">Selecione...</option>';
+      });
   }
+}
+
 
   function openEditModal(id){
     const st = allStudents.find(x => String(x.id) === String(id));
@@ -691,7 +763,6 @@
     $qs('#edit_fim').value      = st.fim_trabalho || '';
     $qs('#edit_renovou').value  = (st.renovou_contrato != null) ? st.renovou_contrato : '0';
 
-    // Recebeu bolsa? (condicional)
     const vis = mostraCampoBolsa(st.curso, st.tipo_contrato);
     $qs('#wrap_recebeu_bolsa').style.display = vis ? 'block' : 'none';
     if (st.recebeu_bolsa == null) $qs('#edit_recebeu_bolsa').value = '';
@@ -707,8 +778,44 @@
     $qs('#edit_curso').oninput   = updateBolsaUI;
     $qs('#edit_tipo_contrato').onchange = updateBolsaUI;
 
+    // CBO + salário
+    const $editCbo = $qs('#edit_cbo');
+    if ($editCbo) {
+      $editCbo.value = st.cbo || cboFromCurso(st.curso||'');
+      $qs('#edit_curso').addEventListener('change', ()=>{
+        $editCbo.value = cboFromCurso($qs('#edit_curso').value || '');
+      });
+    }
+    const wrapRecebe = $qs('#wrap_recebe_salario');
+    const wrapSal    = $qs('#wrap_salario_valor');
+    const selRecebe  = $qs('#edit_recebe_salario');
+    const inpSal     = $qs('#edit_salario');
+
+    if (selRecebe) selRecebe.value = (st.recebe_salario==null ? '' : String(st.recebe_salario?1:0));
+    if (inpSal)    inpSal.value    = (st.salario==null ? '' : String(st.salario));
+
+    function updateSalarioUI(){
+      const tipo = $qs('#edit_tipo_contrato').value;
+      const status = $qs('#edit_status').value;
+      if (wrapRecebe && wrapSal) {
+        if (tipo === 'Estágio') {
+          wrapRecebe.style.display = 'block';
+          if (selRecebe) wrapSal.style.display = (selRecebe.value === '1') ? 'block' : 'none';
+        } else {
+          wrapRecebe.style.display = 'none';
+          if (selRecebe) selRecebe.value = '';
+          wrapSal.style.display = (status === 'Ativo' || status === 'Em andamento') ? 'block' : 'none';
+        }
+      }
+    }
+    $qs('#edit_tipo_contrato').addEventListener('change', updateSalarioUI);
+    $qs('#edit_status').addEventListener('change', updateSalarioUI);
+    if (selRecebe) selRecebe.addEventListener('change', updateSalarioUI);
+    updateSalarioUI();
+
     $qs('#editModal').style.display = 'block';
   }
+
   const closeEditModal = ()=>{ const m=$qs('#editModal'); if(m) m.style.display = 'none'; };
 
   async function saveEdit(){
@@ -738,7 +845,11 @@
       observacao: ($qs('#edit_observacao').value||'').trim(),
       tipo_contrato: tipoSel || '',
 
-      recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu))
+      recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu)),
+
+      recebe_salario: ($qs('#edit_recebe_salario') ? ($qs('#edit_recebe_salario').value === '' ? null : parseInt($qs('#edit_recebe_salario').value)) : null),
+      salario: (()=>{ const el = $qs('#edit_salario'); if(!el) return null; const v = el.value; return v === '' ? null : parseFloat(v); })(),
+      cbo: ($qs('#edit_cbo') ? ($qs('#edit_cbo').value||'').trim() : '')
     };
 
     try {
@@ -755,7 +866,7 @@
           const empresaName = companiesById[String(data.empresa_id)] || (allStudents[idx].empresa || '');
           allStudents[idx] = {...allStudents[idx], ...data, empresa: empresaName};
         }
-        applyFilters();
+        safeApplyFilters();
         closeEditModal();
         alert('Atualizado com sucesso.');
       } else {
@@ -768,14 +879,14 @@
 
   // ---------- init ----------
   (async function init(){
-    try {
-      allCompanies = await fetchCompanies();
-      companiesById = {};
-      allCompanies.forEach(c => { companiesById[String(c.id)] = c.nome || c.razao_social || c.name || ''; });
-    } catch(e){
-      console.warn('Não foi possível carregar empresas:', e);
-      allCompanies = []; companiesById = {};
-    }
+  try {
+    allCompanies = await fetchCompanies();                 // <— busca já no começo
+    companiesById = {};
+    allCompanies.forEach(c => { companiesById[String(c.id)] = c.nome; });
+  } catch(e){
+    console.warn('Não foi possível carregar empresas:', e);
+    allCompanies = []; companiesById = {};
+  }
 
     if(idParam){
       pageTitle.textContent = 'Dashboard do Aluno';
@@ -798,6 +909,7 @@
             cpf: s.cpf,
             ra: s.ra || '',
             curso: s.curso || '',
+            cbo: s.cbo || '',
             turno: s.turno || '',
             serie: s.serie || '',
             status: s.status || '',
@@ -805,6 +917,8 @@
             cargaSemanal: Number(s.cargaSemanal || 0),
 
             recebeu_bolsa: (s.recebeu_bolsa == null ? null : Number(s.recebeu_bolsa) ? 1 : 0),
+            recebe_salario: (s.recebe_salario == null ? null : Number(s.recebe_salario) ? 1 : 0),
+            salario: (s.salario == null ? null : Number(s.salario)),
 
             empresa_id: empId || '',
             empresa: empName || '',
@@ -819,16 +933,17 @@
         renderTable(allStudents);
         renderCharts(allStudents);
 
-        $qs('#filterStatus')?.addEventListener('change', applyFilters);
-        $qs('#filterCurso')?.addEventListener('change', applyFilters);
-        $qs('#filterEscola')?.addEventListener('change', applyFilters);
-        $qs('#filterSearch')?.addEventListener('input', applyFilters);
+        // Use o wrapper seguro — evita ReferenceError no carregamento
+        $qs('#filterStatus')?.addEventListener('change', safeApplyFilters);
+        $qs('#filterCurso')?.addEventListener('change', safeApplyFilters);
+        $qs('#filterEscola')?.addEventListener('change', safeApplyFilters);
+        $qs('#filterSearch')?.addEventListener('input', safeApplyFilters);
         $qs('#btnClearFilters')?.addEventListener('click', ()=>{
           if($qs('#filterStatus')) $qs('#filterStatus').value = '';
           if($qs('#filterCurso'))  $qs('#filterCurso').value  = '';
           if($qs('#filterEscola')) $qs('#filterEscola').value = '';
           if($qs('#filterSearch')) $qs('#filterSearch').value = '';
-          applyFilters();
+          safeApplyFilters();
         });
 
         $qs('#cancelEdit')?.addEventListener('click', closeEditModal);
@@ -840,6 +955,26 @@
       }
     }
   })();
+
+  // ======== Mapa CBO no front ========
+  const MAP_CBO = {
+    'Enfermagem':'322205',
+    'Análises Clínicas':'324205',
+    'Farmácia':'321105',
+    'Técnico em Segurança do Trabalho':'351605',
+    'Segurança do Trabalho':'351605',
+    'Desenvolvimento de Sistemas':'317110',
+    'Técnico em Informática':'317105',
+    'Edificações':'715315',
+    'Mecânica Automotiva':'913105',
+    'Energias Renováveis':'715615'
+  };
+  const cboFromCurso = (curso)=> MAP_CBO[(curso||'').trim()] || '';
+
+  // ======== exposição global extra (se seu HTML usa inline handlers) ========
+  window.openEditModal    = openEditModal;
+  window.saveEdit         = saveEdit;
+  window.renderIndividual = renderIndividual;
 </script>
 
 

@@ -2,63 +2,65 @@
 // php/register_company.php
 header('Content-Type: application/json; charset=utf-8');
 
-require_once __DIR__ . '/db.php'; // precisa expor $pdo (PDO conectado)
+function out($ok, $msg=null, $extra=[]){
+  echo json_encode(array_merge(['success'=>$ok, 'message'=>$msg], $extra), JSON_UNESCAPED_UNICODE);
+  exit;
+}
 
 try {
-    // Cria a tabela se não existir
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS empresas (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          razao_social VARCHAR(200) NOT NULL,
-          cnpj VARCHAR(20) NOT NULL,
-          endereco VARCHAR(255) NULL,
-          cep VARCHAR(20) NULL,
-          telefone VARCHAR(30) NULL,
-          tipo_contrato ENUM('Menor Aprendiz','Jovem Aprendiz','Estágio') NOT NULL,
-          criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY uniq_cnpj (cnpj)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ");
+  require __DIR__ . '/db.php';
+  $pdo = pdo();
+} catch (Throwable $e) {
+  out(false, 'Falha de conexão: '.$e->getMessage());
+}
 
-    // Campos (empresa.html envia 'razao_social', mas aceitamos 'nome' também)
-    $razao_social  = trim($_POST['razao_social'] ?? $_POST['nome'] ?? '');
-    $cnpj          = trim($_POST['cnpj'] ?? '');
-    $endereco      = trim($_POST['endereco'] ?? '');
-    $cep           = trim($_POST['cep'] ?? '');
-    $telefone      = trim($_POST['telefone'] ?? '');
-    $tipo_contrato = trim($_POST['tipo_contrato'] ?? '');
+// Aceita application/json ou multipart/form-data
+if (!empty($_SERVER['CONTENT_TYPE']) && stripos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
+  $raw = file_get_contents('php://input');
+  $_POST = json_decode($raw, true) ?: [];
+}
 
-    if ($razao_social === '' || $cnpj === '' || $tipo_contrato === '') {
-        echo json_encode(['success'=>false,'message'=>'Preencha Nome (Razão Social), CNPJ e Tipo de Contrato.']);
-        exit;
-    }
+// Campos
+$nome          = trim($_POST['razao_social'] ?? $_POST['nome'] ?? '');
+$cnpj          = trim($_POST['cnpj'] ?? '');
+$logradouro    = trim($_POST['logradouro'] ?? '');
+$numero        = trim($_POST['numero'] ?? '');
+$complemento   = trim($_POST['complemento'] ?? '');
+$bairro        = trim($_POST['bairro'] ?? '');
+$cidade        = trim($_POST['cidade'] ?? '');
+$uf            = strtoupper(trim($_POST['uf'] ?? ''));
+$cep           = trim($_POST['cep'] ?? '');
+$telefone      = trim($_POST['telefone'] ?? '');
+$tipo_contrato = trim($_POST['tipo_contrato'] ?? '');
 
-    // Normaliza CNPJ
-    $cnpj_digits = preg_replace('/\D+/', '', $cnpj);
-    if (strlen($cnpj_digits) < 8) {
-        echo json_encode(['success'=>false,'message'=>'CNPJ inválido.']);
-        exit;
-    }
+if ($nome === '')          out(false, 'Informe o nome/razão social.');
+if ($cnpj === '')          out(false, 'Informe o CNPJ.');
+if ($tipo_contrato === '') out(false, 'Informe o tipo de contrato.');
 
-    $stmt = $pdo->prepare("
-        INSERT INTO empresas (razao_social, cnpj, endereco, cep, telefone, tipo_contrato)
-        VALUES (:razao_social, :cnpj, :endereco, :cep, :telefone, :tipo_contrato)
-    ");
-    $stmt->execute([
-        ':razao_social'  => $razao_social,
-        ':cnpj'          => $cnpj_digits,
-        ':endereco'      => ($endereco !== '' ? $endereco : null),
-        ':cep'           => ($cep !== '' ? $cep : null),
-        ':telefone'      => ($telefone !== '' ? $telefone : null),
-        ':tipo_contrato' => $tipo_contrato,
-    ]);
+try {
+  $stmt = $pdo->prepare("
+    INSERT INTO empresas
+    (nome, razao_social, cnpj, logradouro, numero, complemento, bairro, cidade, uf, cep, telefone, tipo_contrato)
+    VALUES (:nome, :razao, :cnpj, :logradouro, :numero, :complemento, :bairro, :cidade, :uf, :cep, :telefone, :tipo_contrato)
+  ");
+  $stmt->execute([
+    ':nome'          => $nome,
+    ':razao'         => $nome,
+    ':cnpj'          => $cnpj,
+    ':logradouro'    => $logradouro,
+    ':numero'        => $numero,
+    ':complemento'   => $complemento,
+    ':bairro'        => $bairro,
+    ':cidade'        => $cidade,
+    ':uf'            => $uf,
+    ':cep'           => $cep,
+    ':telefone'      => $telefone,
+    ':tipo_contrato' => $tipo_contrato,
+  ]);
 
-    echo json_encode(['success'=>true,'message'=>'Empresa cadastrada com sucesso!']);
-} catch (PDOException $e) {
-    if ($e->getCode() === '23000') {
-        echo json_encode(['success'=>false,'message'=>'Já existe uma empresa com esse CNPJ.']);
-    } else {
-        echo json_encode(['success'=>false,'message'=>'Erro ao salvar empresa','error'=>$e->getMessage()]);
-    }
+  $id = (int)$pdo->lastInsertId();
+  out(true, 'Empresa cadastrada com sucesso.', ['id'=>$id]);
+} catch (Throwable $e) {
+  out(false, 'Erro ao salvar empresa: '.$e->getMessage());
 }
 ?>
