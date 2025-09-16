@@ -325,3 +325,169 @@ input:focus, select:focus {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* ============================================================
+   🔧 RESPONSIVIDADE PROFISSIONAL — APENDE AO FINAL DO style.css
+   (Não altera o HTML. Apenas adapta o layout para telas pequenas,
+    médias e grandes; melhora legibilidade e usabilidade em mobile.)
+   ============================================================ */
+
+/* --------- Tipografia fluida --------- */
+:root {
+  --fs-h1: clamp(1.25rem, 1rem + 1.5vw, 1.6rem);
+  --fs-h2: clamp(1.05rem, 0.9rem + 1.2vw, 1.35rem);
+  --fs-base: clamp(0.95rem, 0.9rem + 0.3vw, 1rem);
+}
+
+html { font-size: 100%; }
+body { font-size: var(--fs-base); }
+h1 { font-size: var(--fs-h1); }
+h2 { font-size: var(--fs-h2); }
+
+/* --------- Contêiner e espaçamentos --------- */
+.container {
+  padding-left: clamp(12px, 2vw, 24px);
+  padding-right: clamp(12px, 2vw, 24px);
+}
+
+/* --------- Topbar adaptável --------- */
+.topbar {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.topbar > * { min-width: 0; }
+.topbar .actions,
+.topbar div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .topbar { flex-direction: column; align-items: stretch; }
+  .topbar h1 { margin-bottom: 6px; }
+  .topbar .btn, .topbar .btn-outline, .topbar .btn-small {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* --------- Botões: melhor toque em mobile --------- */
+.btn, .btn-outline, .btn-small, .btn-pdf, .btn-excel {
+  min-height: 42px;
+}
+@media (max-width: 520px) {
+  .actions .btn, .actions .btn-outline, .actions .btn-small {
+    width: 100%;
+  }
+}
+
+/* --------- Formulários --------- */
+.form-container {
+  width: min(100%, 640px);
+  margin: clamp(24px, 6vh, 60px) auto;
+  padding: clamp(16px, 3.5vw, 32px);
+}
+label { font-size: clamp(0.95rem, 0.9rem + 0.35vw, 1rem); }
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select, textarea {
+  font-size: 1rem;
+}
+
+/* --------- Cards em Grid fluido --------- */
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: clamp(10px, 2vw, 16px);
+}
+.card { min-width: 0; } /* deixa o grid decidir a largura */
+@media (max-width: 420px) {
+  .card { padding: 14px; }
+}
+
+/* --------- Filtros / Controles --------- */
+.controls { display: block; }
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+#Pesquisar { display: flex; flex-direction: column; }
+#Pesquisar input { width: 100%; }
+
+/* --------- Tabelas responsivas (scroll sutil) --------- */
+.table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+}
+.table thead { position: sticky; top: 0; z-index: 1; }
+.table th, .table td { white-space: nowrap; }
+.table tr:nth-child(even) td,
+.table tr:nth-child(even) th { background-clip: padding-box; }
+
+/* melhora o scroll visual em iOS/Android */
+.table::-webkit-scrollbar { height: 8px; }
+.table::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+}
+.table::-webkit-scrollbar-track { background: transparent; }
+
+/* --------- Modal: telas pequenas --------- */
+.modal { padding: clamp(8px, 2.5vw, 16px); }
+.modal-content {
+  width: min(100%, 560px);
+  padding: clamp(16px, 3vw, 24px);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+/* --------- Canvas/gráficos --------- */
+canvas { max-width: 100%; height: auto !important; }
+
+/* --------- Utilidades para colunas fixas em admin --------- */
+@media (min-width: 900px) {
+  /* garante 3 colunas de cards agradáveis em telas médias/grandes */
+  .dashboard-cards[data-cols="3"],
+  .dashboard-cards.dashboard-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* --------- Dark mode opcional (automático) --------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0f14;
+    --surface: #101824;
+    --text: #e0e6f0;
+    --text-muted: #b0b8c3;
+    --primary: #4ea1ff;
+    --primary-light: #6bb3ff;
+    --secondary: #3ad29f;
+    --danger: #ff6b6b;
+    --success: #3ddc97;
+  }
+  .topbar { box-shadow: none; }
+  .table th { background: var(--primary); }
+  .table td { border-bottom-color: rgba(255,255,255,0.06); }
+  .card { box-shadow: 0 4px 14px rgba(0,0,0,0.45); }
+}
+
+/* --------- Microajustes por breakpoints --------- */
+@media (max-width: 992px) {
+  .container { max-width: 94vw; }
+}
+@media (max-width: 768px) {
+  .table th, .table td { padding: 10px; }
+}
+@media (max-width: 480px) {
+  .table th, .table td { padding: 8px; font-size: 0.95rem; }
+  h1 { line-height: 1.15; }
+  h2 { line-height: 1.2; }
+}
