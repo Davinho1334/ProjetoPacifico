@@ -15,9 +15,9 @@ try {
     ");
 
     // === DADOS PRÉ-DEFINIDOS (troque se quiser) ===
-    $cpf  = '12345678900';           // login será por CPF
+    $cpf  = '082217';           // login será por CPF
     $nome = 'Administrador';
-    $senha_plana = '123456';         // troque depois por algo mais forte
+    $senha_plana = '1234567';         // troque depois por algo mais forte
 
     // já existe?
     $stmt = $pdo->prepare("SELECT id FROM admins WHERE cpf = :cpf LIMIT 1");

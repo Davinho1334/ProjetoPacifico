@@ -1,4 +1,5 @@
 <?php
+// php/generate_contrato.php
 declare(strict_types=1);
 require_once __DIR__.'/auth_admin.php';
 require_once __DIR__.'/db.php';
@@ -8,90 +9,91 @@ require_once __DIR__.'/../vendor/autoload.php';
 use PhpOffice\PhpWord\TemplateProcessor;
 
 $alunoId = isset($_GET['aluno_id']) ? (int)$_GET['aluno_id'] : 0;
-if ($alunoId <= 0) die('aluno_id inválido');
+if ($alunoId <= 0) { die('aluno_id inválido'); }
 
 $pdo = $pdo ?? null;
-if (!($pdo instanceof PDO)) die('PDO não disponível');
+if (!($pdo instanceof PDO)) { die('PDO não disponível'); }
 
-$aluno   = getAluno($pdo, $alunoId);
+$aluno = getAluno($pdo, $alunoId);
 if (!$aluno) die('Aluno não encontrado');
 
-$empresa = getEmpresa($pdo, $aluno['empresa_id'] ?? ($aluno['empresa'] ?? '')) ?: [];
+$empresa = getEmpresa($pdo, $aluno['empresa_id'] ?? ($aluno['empresa'] ?? ''));
 $agenda  = carregarAgenda($pdo, $alunoId);
-$cargas  = calcularCargas($aluno, $agenda);
 
-// ===== Não preencher Responsável Legal (fica em branco) =====
-// ===== Não substituir Entidade Formadora (fica como no modelo) =====
+$ini = $aluno['inicio_trabalho'] ?? '';
+$fim = $aluno['fim_trabalho'] ?? '';
+$curso = $aluno['curso'] ?? '';
+$entidade = $aluno['escola'] ?? 'CETI - (preencher)';
 
-// Empregador: endereço completo (novo pedido)
-$empNome = $empresa['razao_social'] ?? ($empresa['nome'] ?? '');
-$empCnpj = $empresa['cnpj'] ?? '';
-$empEndCompleto = formatEmpresaEnderecoCompleto($empresa); // logradouro, Nº, comp, bairro, cidade, UF, CEP
-
-// Curso/CBO/datas/cargas
-$curso = (string)($aluno['curso'] ?? '');
-$cbo   = cboForCourse($curso, $aluno['cbo'] ?? '');
-$inicioBR = formatDateBR($aluno['inicio_trabalho'] ?? '');
-$fimBR    = formatDateBR($aluno['fim_trabalho'] ?? '');
-
-$cargaSemanal = $cargas['sem_total'];
-$cargaTotal   = $cargas['total_programa'];
-$semTeo       = $cargas['sem_teo'];
-$semPra       = $cargas['sem_pra'];
-
-$txtTeorica = linhasHorario($agenda['teorica'] ?? []);
-$txtPratica = linhasHorario($agenda['pratica'] ?? []);
-
-// Salário (se existir no aluno). Para Estágio, considere recebe_salario; para Aprendiz, pode registrar só valor.
-$salario = $aluno['salario'] ?? null;
-$recebe  = $aluno['recebe_salario'] ?? null;
-
-// Template
 $templatePath = __DIR__ . '/../templates/contrato_aprendiz.docx';
 if (!is_file($templatePath)) die('Modelo não encontrado');
 
 $tp = new TemplateProcessor($templatePath);
 
-// Empregador
-$tp->setValue('EMPREGADOR_NOME', htmlspecialchars($empNome));
-$tp->setValue('EMPREGADOR_CNPJ', htmlspecialchars($empCnpj));
-$tp->setValue('EMPREGADOR_END',  htmlspecialchars($empEndCompleto));
+// --- Placeholders esperados (recomendado editar o .docx e inserir estes marcadores) ---
+$map = [
+  'EMPREGADOR_NOME'  => ($empresa['nome'] ?? $empresa['razao_social'] ?? ''),
+  'EMPREGADOR_END'   => ($empresa['endereco'] ?? ''),
+  'EMPREGADOR_CNPJ'  => ($empresa['cnpj'] ?? ''),
+  'EMPREGADOR_BAIRROCEP' => '',
 
-// Aprendiz
-$tp->setValue('APRENDIZ_NOME', htmlspecialchars($aluno['nome'] ?? ''));
-$tp->setValue('APRENDIZ_END',  htmlspecialchars($aluno['endereco'] ?? ''));
-$tp->setValue('APRENDIZ_CPF',  htmlspecialchars($aluno['cpf'] ?? ''));
+  'APRENDIZ_NOME'    => ($aluno['nome'] ?? ''),
+  'APRENDIZ_END'     => ($aluno['endereco'] ?? ''),
+  'APRENDIZ_CPF'     => ($aluno['cpf'] ?? ''),
+  'RESPONSAVEL_NOME' => ($aluno['responsavel'] ?? ''),
+  'RESPONSAVEL_CPF'  => ($aluno['responsavel_cpf'] ?? ''),
 
-// Responsável Legal => não setar (deixa em branco)
-// Entidade Formadora => não setar (fica o texto original do modelo)
+  'ENTIDADE_NOME'    => $entidade,
+  'ENTIDADE_CNPJ'    => ($aluno['entidade_cnpj'] ?? ''),
+  'ENTIDADE_END'     => ($aluno['entidade_endereco'] ?? ''),
 
-// Curso/CBO/Datas/Cargas
-$tp->setValue('CURSO', htmlspecialchars($curso));
-$tp->setValue('CBO',   htmlspecialchars($cbo));
-$tp->setValue('CNAP',  htmlspecialchars($aluno['cnap'] ?? ''));
-$tp->setValue('DATA_INICIO', $inicioBR);
-$tp->setValue('DATA_FIM',    $fimBR);
-$tp->setValue('CARGA_SEMANAL', (string)$cargaSemanal);
-$tp->setValue('CARGA_TOTAL',   (string)$cargaTotal);
+  'CURSO'            => $curso,
+  'CBO'              => ($aluno['cbo'] ?? '351605'),
+  'DATA_INICIO'      => $ini,
+  'DATA_FIM'         => $fim,
 
-// Agenda teórica/prática — por placeholders (sem bagunçar o texto do modelo)
+  // totais (opcional usar no docx)
+  'CARGA_TOTAL'      => ($aluno['carga_total'] ?? ''), // se quiser: teorica_total+pratica_total do programa
+  'CARGA_TEORICA'    => ($aluno['carga_teorica'] ?? ''),
+  'CARGA_PRATICA'    => ($aluno['carga_pratica'] ?? ''),
+  'CARGA_SEMANAL'    => ($aluno['cargaSemanal'] ?? ''),
+];
+
+// preenche placeholders (se existirem)
+foreach($map as $key=>$val){ $tp->setValue($key, htmlspecialchars((string)$val)); }
+
+// --- Monta os horários (substituição textual) ---
+$sumT = somaSemanal($agenda['teorica']);
+$sumP = somaSemanal($agenda['pratica']);
+
+// Exemplo: trocar as linhas azuis do seu modelo por linhas com os horários do editor.
+// Você pode ancorar por dia da semana; abaixo criamos um bloco textual simples:
+function linhasHorario(array $blocos): string {
+  // retorna string multiline com cada dia/ini/fim/total
+  $dias = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira'];
+  $out = [];
+  foreach($blocos as $b){
+    $h = diffHoras($b['ini'],$b['fim']);
+    $out[] = sprintf("%s\t%s\t%s\t%.0f horas", $dias[$b['dia']], $b['ini'], $b['fim'], $h);
+  }
+  return implode("\n", $out);
+}
+$txtTeorica = linhasHorario($agenda['teorica']);
+$txtPratica = linhasHorario($agenda['pratica']);
+
+// Se você colocar placeholders no docx (ex.: ${TEORICA_TABELA}, ${PRATICA_TABELA}, ${TEORICA_SEMANAL_TOTAL}, ${PRATICA_SEMANAL_TOTAL}):
 $tp->setValue('TEORICA_TABELA', $txtTeorica);
 $tp->setValue('PRATICA_TABELA', $txtPratica);
-$tp->setValue('TEORICA_SEMANAL_TOTAL', (string)$semTeo);
-$tp->setValue('PRATICA_SEMANAL_TOTAL', (string)$semPra);
+$tp->setValue('TEORICA_SEMANAL_TOTAL', (string)$sumT);
+$tp->setValue('PRATICA_SEMANAL_TOTAL', (string)$sumP);
 
-// Salário (se você colocou placeholders no docx)
-$tp->setValue('SALARIO_VALOR', ($salario!==null && $salario!=='') ? number_format((float)$salario,2,',','.') : '');
-$tp->setValue('SALARIO_TEM', ($recebe===null) ? '' : ((int)$recebe===1 ? 'SIM' : 'NÃO'));
-
-// Aviso para responsabilidades (sem campo no sistema)
-$tp->setValue('AVISO_RESPONSABILIDADES', 'ATENÇÃO: as responsabilidades do aprendiz/estagiário devem ser ajustadas manualmente neste documento conforme orientação da escola/empresa.');
-
+// Saída
 $outDir = __DIR__ . '/../tmp';
 @mkdir($outDir, 0775, true);
 $outFile = $outDir . '/CONTRATO_APRENDIZ_' . $alunoId . '.docx';
 $tp->saveAs($outFile);
 
+// baixar
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 header('Content-Disposition: attachment; filename="'.basename($outFile).'"');
 readfile($outFile);
