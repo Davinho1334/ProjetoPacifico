@@ -22,8 +22,8 @@
         <input name="ra" type="text" />
       </label>
 
-      <label>Ano de nascimento
-        <input required name="ano_nascimento" type="number" min="1900" max="2100" />
+      <label>Data de nascimento
+        <input required name="data_nascimento" id="dataNascimento" type="text" maxlength="10" placeholder="dd/mm/aaaa" />
       </label>
 
       <label>Curso
@@ -67,6 +67,18 @@
   </main>
 
   <script>
+  // máscara automática dd/mm/aaaa
+  const inputData = document.getElementById('dataNascimento');
+  inputData.addEventListener('input', () => {
+    let v = inputData.value.replace(/\D/g, ''); // só números
+    if (v.length > 2 && v.length <= 4)
+      v = v.replace(/^(\d{2})(\d+)/, '$1/$2');
+    else if (v.length > 4)
+      v = v.replace(/^(\d{2})(\d{2})(\d+)/, '$1/$2/$3');
+    inputData.value = v;
+  });
+
+  // envio do cadastro
   document.getElementById('cadastroForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);

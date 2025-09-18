@@ -2,147 +2,106 @@
 // php/get_me.php
 declare(strict_types=1);
 
-// Evita saída antes do JSON
-while (ob_get_level() > 0) { ob_end_clean(); }
-
+// Garanta que o cookie de sessão seja válido para todo o site:
+session_set_cookie_params([
+  'lifetime' => 0,
+  'path'     => '/',
+  'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+  'httponly' => true,
+  'samesite' => 'Lax', // se front/back estiverem em domínios diferentes, use 'None' + HTTPS
+]);
 session_start();
+
 header('Content-Type: application/json; charset=utf-8');
-error_reporting(E_ALL);
-ini_set('display_errors', '0');
 
-if (empty($_SESSION['cpf'])) {
+// Verifica sessão criada no login
+if (empty($_SESSION['aluno_id']) && empty($_SESSION['aluno_cpf'])) {
   http_response_code(401);
-  echo json_encode(['success'=>false,'message'=>'Não autenticado.']); exit;
-}
-
-try {
-  require_once __DIR__ . '/_db_bridge.php'; // expõe $DB sem mexer no seu db.php
-} catch (Throwable $e) {
-  http_response_code(500);
-  echo json_encode(['success'=>false,'message'=>'Erro de conexão: '.$e->getMessage()]);
+  echo json_encode(['success' => false, 'message' => 'Não autenticado']);
   exit;
 }
 
-function only_digits(string $s): string {
-  return preg_replace('/\D+/', '', $s);
-}
+require_once __DIR__ . '/db.php';
 
-// pega o primeiro valor encontrado no array $cands que exista no $row
-function pick(array $row, array $cands) {
-  foreach ($cands as $k) {
-    if (array_key_exists($k, $row) && $row[$k] !== null) {
-      return $row[$k];
-    }
-  }
-  return null;
-}
+$pdo    = (isset($pdo)    && $pdo    instanceof PDO)    ? $pdo    : null;
+$mysqli = (isset($mysqli) && $mysqli instanceof mysqli) ? $mysqli : null;
+if (!$mysqli && isset($conn) && $conn instanceof mysqli) $mysqli = $conn;
+
+$aluno = null;
 
 try {
-  $cpfSessao = only_digits((string)$_SESSION['cpf']);
+  if ($pdo) {
+    $sql = "SELECT 
+              id, nome, cpf, ra,
+              curso, turno, serie, status,
+              empresa, empresa_id,
+              inicio_trabalho, fim_trabalho, renovou_contrato,
+              cargaSemanal,
+              data_nascimento,
+              tipo_contrato,
+              recebeu_bolsa
+            FROM alunos
+            WHERE " . (!empty($_SESSION['aluno_id']) ? "id = :id" : "cpf = :cpf") . "
+            LIMIT 1";
+    $stmt = $pdo->prepare($sql);
+    if (!empty($_SESSION['aluno_id'])) {
+      $stmt->bindValue(':id', (int)$_SESSION['aluno_id'], PDO::PARAM_INT);
+    } else {
+      $stmt->bindValue(':cpf', $_SESSION['aluno_cpf'], PDO::PARAM_STR);
+    }
+    $stmt->execute();
+    $aluno = $stmt->fetch(PDO::FETCH_ASSOC);
 
-  // 1) Busca o registro inteiro (SELECT *)
-  $row = null;
-  if ($DB['type'] === 'pdo') {
-    /** @var PDO $pdo */
-    $pdo = $DB['pdo'];
-    $st = $pdo->prepare("
-      SELECT * FROM alunos
-      WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = :cpf
-      LIMIT 1
-    ");
-    $st->execute([':cpf'=>$cpfSessao]);
-    $row = $st->fetch();
-
-  } elseif ($DB['type'] === 'mysqli') {
-    /** @var mysqli $conn */
-    $conn = $DB['mysqli'];
-    $st = $conn->prepare("
-      SELECT * FROM alunos
-      WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ?
-      LIMIT 1
-    ");
-    if (!$st) { throw new Exception('Falha prepare (mysqli): '.$conn->error); }
-    $st->bind_param('s', $cpfSessao);
-    $st->execute();
-    $res = $st->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
-    $st->close();
+  } elseif ($mysqli) {
+    $sql = "SELECT 
+              id, nome, cpf, ra,
+              curso, turno, serie, status,
+              empresa, empresa_id,
+              inicio_trabalho, fim_trabalho, renovou_contrato,
+              cargaSemanal,
+              data_nascimento,
+              tipo_contrato,
+              recebeu_bolsa
+            FROM alunos
+            WHERE " . (!empty($_SESSION['aluno_id']) ? "id = ?" : "cpf = ?") . "
+            LIMIT 1";
+    $stmt = $mysqli->prepare($sql);
+    if (!$stmt) {
+      echo json_encode(['success'=>false,'message'=>'Falha ao preparar consulta','error'=>$mysqli->error]);
+      exit;
+    }
+    if (!empty($_SESSION['aluno_id'])) {
+      $stmt->bind_param("i", $_SESSION['aluno_id']);
+    } else {
+      $stmt->bind_param("s", $_SESSION['aluno_cpf']);
+    }
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $aluno = $res->fetch_assoc();
   } else {
-    throw new Exception('Tipo de conexão desconhecido.');
+    echo json_encode(['success'=>false,'message'=>'Nenhum conector de banco disponível (PDO/MySQLi).']);
+    exit;
   }
-
-  if (!$row) {
-    http_response_code(404);
-    echo json_encode(['success'=>false,'message'=>'Aluno não encontrado.']); exit;
-  }
-
-  // 2) Mapas de possíveis nomes por campo
-  $campos = [
-    'ra'               => ['ra','RA','registro_academico'],
-    'nome'             => ['nome','Nome','nome_completo'],
-    'nome_nascimento'  => ['nome_nascimento','nome_nasc','nome_registro','nome_de_nascimento','nome_ao_nascer'],
-    'cpf'              => ['cpf','CPF'],
-    'curso'            => ['curso','Curso'],
-    'turno'            => ['turno','Turno'],
-    'serie'            => ['serie','série','Serie','Série','ano','Ano'],
-    'status'           => ['status','situacao','situação','Status'],
-    'empresa'          => ['empresa','empresa_atual','empresa_trabalho'],
-    'inicio_trabalho'  => ['inicio_trabalho','inicio_contrato','data_inicio','data_inicio_contrato','inicio'],
-    'fim_trabalho'     => ['fim_trabalho','fim_contrato','data_fim','data_fim_contrato','termino','término'],
-    'renovou_contrato' => ['renovou_contrato','renovou','renovacao','renovação','renovacao_contrato'],
-    'contato'          => ['contato','telefone','celular','email','e_mail'],
-    'tipo_contrato'    => ['tipo_contrato','tipo','modalidade','vinculo','vínculo'],
-    'data_nascimento'  => ['data_nascimento','nascimento','dt_nascimento','dataDeNascimento','dn'],
-  ];
-
-  // 3) Monta payload com base no que existir
-  $out = [];
-  foreach ($campos as $padrao => $cands) {
-    $out[$padrao] = pick($row, $cands);
-  }
-
-  // 4) Pós-processamento
-  // boolean para renovou_contrato
-  if ($out['renovou_contrato'] !== null) {
-    $val = $out['renovou_contrato'];
-    // aceita 1/0, '1'/'0', 'sim'/'não', 'true'/'false'
-    $out['renovou_contrato'] = in_array(strtolower((string)$val), ['1','sim','true','yes','y'], true) || $val === 1;
-  }
-
-  // idade a partir de data_nascimento
-  $idade = null;
-  if (!empty($out['data_nascimento'])) {
-    try {
-      $dn   = new DateTime((string)$out['data_nascimento']);
-      $idade = $dn->diff(new DateTime('today'))->y;
-    } catch (Throwable $e) { $idade = null; }
-  }
-
-  echo json_encode([
-    'success' => true,
-    'data' => [
-      'ra'               => $out['ra'],
-      'nome'             => $out['nome'],
-      'nome_nascimento'  => $out['nome_nascimento'],
-      'cpf'              => $out['cpf'],
-      'curso'            => $out['curso'],
-      'turno'            => $out['turno'],
-      'serie'            => $out['serie'],
-      'status'           => $out['status'],
-      'empresa'          => $out['empresa'],
-      'inicio_trabalho'  => $out['inicio_trabalho'],
-      'fim_trabalho'     => $out['fim_trabalho'],
-      'renovou_contrato' => $out['renovou_contrato'],
-      'contato'          => $out['contato'],
-      'tipo_contrato'    => $out['tipo_contrato'],
-      'data_nascimento'  => $out['data_nascimento'],
-      'idade'            => $idade
-    ]
-  ]);
-
 } catch (Throwable $e) {
-  http_response_code(500);
-  while (ob_get_level() > 0) { ob_end_clean(); }
-  echo json_encode(['success'=>false,'message'=>'Erro no servidor: '.$e->getMessage()]);
+  echo json_encode(['success'=>false,'message'=>'Erro ao buscar aluno','error'=>$e->getMessage()]);
+  exit;
 }
+
+if (!$aluno) {
+  echo json_encode(['success' => false, 'message' => 'Aluno não encontrado']);
+  exit;
+}
+
+// Normalização
+if (array_key_exists('recebeu_bolsa', $aluno)) {
+  $aluno['recebeu_bolsa'] = is_null($aluno['recebeu_bolsa']) ? null : (int)$aluno['recebeu_bolsa'];
+}
+if (array_key_exists('renovou_contrato', $aluno)) {
+  $aluno['renovou_contrato'] = (int)$aluno['renovou_contrato'];
+}
+if (!isset($aluno['tipo_contrato']) || $aluno['tipo_contrato'] === null) {
+  $aluno['tipo_contrato'] = '';
+}
+
+echo json_encode(['success' => true, 'data' => $aluno], JSON_UNESCAPED_UNICODE);
 ?>

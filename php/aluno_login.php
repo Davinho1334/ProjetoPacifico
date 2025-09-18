@@ -2,93 +2,71 @@
 // php/aluno_login.php
 declare(strict_types=1);
 
-// Evita saída antes do JSON
-while (ob_get_level() > 0) { ob_end_clean(); }
-
+session_set_cookie_params([
+  'lifetime' => 0,
+  'path'     => '/',
+  'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+  'httponly' => true,
+  'samesite' => 'Lax'
+]);
 session_start();
-header('Content-Type: application/json; charset=utf-8');
-error_reporting(E_ALL);
-ini_set('display_errors', '0');
 
-try {
-  require_once __DIR__ . '/_db_bridge.php'; // expõe $DB
-} catch (Throwable $e) {
-  http_response_code(500);
-  echo json_encode(['success'=>false,'message'=>'Erro de conexão: '.$e->getMessage()]);
+header('Content-Type: application/json; charset=utf-8');
+
+require_once __DIR__ . '/db.php';
+
+$pdo    = (isset($pdo)    && $pdo    instanceof PDO)    ? $pdo    : null;
+$mysqli = (isset($mysqli) && $mysqli instanceof mysqli) ? $mysqli : null;
+if (!$mysqli && isset($conn) && $conn instanceof mysqli) $mysqli = $conn;
+
+$cpf  = trim($_POST['cpf'] ?? '');
+$nome = trim($_POST['nome'] ?? '');
+
+if ($cpf === '') {
+  echo json_encode(['success'=>false,'message'=>'Informe o CPF.']);
   exit;
 }
 
-// Helpers (sem intl/mb obrigatórios)
-function only_digits(string $s): string {
-  return preg_replace('/\D+/', '', $s);
-}
-function tolower_utf8(string $s): string {
-  return function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
-}
-function normalize_name(string $s): string {
-  $s = trim($s);
-  $s = tolower_utf8($s);
-  return preg_replace('/\s+/', ' ', $s);
-}
-
 try {
-  $nome = $_POST['nome'] ?? '';
-  $cpf  = $_POST['cpf']  ?? '';
-  $nomeNorm = normalize_name($nome);
-  $cpfNorm  = only_digits($cpf);
-
-  if ($nomeNorm === '' || $cpfNorm === '') {
-    echo json_encode(['success'=>false,'message'=>'Informe nome e CPF.']); exit;
-  }
-
   $row = null;
-
-  if ($DB['type'] === 'pdo') {
-    /** @var PDO $pdo */
-    $pdo = $DB['pdo'];
-    $st = $pdo->prepare("
-      SELECT nome, cpf
-      FROM alunos
-      WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = :cpf
-      LIMIT 1
-    ");
-    $st->execute([':cpf'=>$cpfNorm]);
-    $row = $st->fetch();
-
-  } elseif ($DB['type'] === 'mysqli') {
-    /** @var mysqli $conn */
-    $conn = $DB['mysqli'];
-    $st = $conn->prepare("
-      SELECT nome, cpf
-      FROM alunos
-      WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ?
-      LIMIT 1
-    ");
-    if (!$st) { throw new Exception('Falha prepare (mysqli): '.$conn->error); }
-    $st->bind_param('s', $cpfNorm);
-    $st->execute();
-    $res = $st->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
-    $st->close();
-  } else {
-    throw new Exception('Tipo de conexão desconhecido.');
+  if ($pdo) {
+    $sql  = "SELECT id, cpf, nome FROM alunos WHERE cpf = :cpf LIMIT 1";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':cpf', $cpf, PDO::PARAM_STR);
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  } elseif ($mysqli) {
+    $sql  = "SELECT id, cpf, nome FROM alunos WHERE cpf = ? LIMIT 1";
+    $stmt = $mysqli->prepare($sql);
+    if (!$stmt) {
+      echo json_encode(['success'=>false,'message'=>'Erro ao preparar consulta','error'=>$mysqli->error]);
+      exit;
+    }
+    $stmt->bind_param("s", $cpf);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc();
   }
-
-  if (!$row) {
-    echo json_encode(['success'=>false,'message'=>'CPF não encontrado.']); exit;
-  }
-
-  if (normalize_name($row['nome'] ?? '') !== $nomeNorm) {
-    echo json_encode(['success'=>false,'message'=>'Nome não confere com o CPF.']); exit;
-  }
-
-  $_SESSION['cpf'] = $row['cpf'];
-  ini_set('session.cookie_httponly','1');
-  echo json_encode(['success'=>true]);
-
 } catch (Throwable $e) {
-  http_response_code(500);
-  while (ob_get_level() > 0) { ob_end_clean(); }
-  echo json_encode(['success'=>false,'message'=>'Erro no servidor: '.$e->getMessage()]);
+  echo json_encode(['success'=>false,'message'=>'Erro ao consultar aluno','error'=>$e->getMessage()]);
+  exit;
 }
+
+if (!$row) {
+  echo json_encode(['success'=>false,'message'=>'Aluno não encontrado para o CPF informado.']);
+  exit;
+}
+
+// Se quiser validar o nome também, descomente:
+// if ($nome !== '' && strcasecmp(trim($row['nome']), $nome) !== 0) {
+//   echo json_encode(['success'=>false,'message'=>'Nome não confere com o CPF.']);
+//   exit;
+// }
+
+// Cria sessão do jeito que get_me.php espera
+$_SESSION['aluno_id']  = (int)$row['id'];
+$_SESSION['aluno_cpf'] = $row['cpf'];
+session_regenerate_id(true);
+
+echo json_encode(['success'=>true,'message'=>'Login efetuado.']);
 ?>

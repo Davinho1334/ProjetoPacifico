@@ -22,9 +22,27 @@
     const info = document.getElementById('info');
     const logoutBtn = document.getElementById('logoutBtn');
 
+    // Cursos com estágio obrigatório
+    const OBRIGATORIOS = new Set(['Enfermagem','Análises Clínicas','Farmácia']);
+    const cursoExigeEstagio = (curso, tipoContrato) =>
+      String(tipoContrato||'') === 'Estágio' && OBRIGATORIOS.has(String(curso||'').trim());
+
+    const formatarDataBR = (isoDate) => {
+      if (!isoDate) return '-';
+      const p = String(isoDate).split('-'); // yyyy-mm-dd
+      if (p.length !== 3) return '-';
+      return `${p[2]}/${p[1]}/${p[0]}`;
+    };
+
+    const recebeuBolsa = (val) => {
+      if (val == null) return null;
+      return Number(val) === 1;
+    };
+
     logoutBtn.addEventListener('click', async () => {
       try {
-        await fetch('php/aluno_logout.php', { method: 'POST' });
+        // URL RELATIVA (mantém /ProjetoPacifico/)
+        await fetch('php/aluno_logout.php', { method: 'POST', credentials: 'same-origin' });
       } finally {
         location.href = 'aluno_login.html';
       }
@@ -35,46 +53,72 @@
     }
 
     function render(d) {
-      const renovou = d.renovou_contrato ? 'Sim' : 'Não';
-      const recebeu = d.recebeu_bolsa ? 'Sim' : 'Não';
-      const bolsa   = (Number(d.bolsa || 0)).toFixed(2);
+      const renovou = Number(d.renovou_contrato) === 1 ? 'Sim' : 'Não';
       const carga   = d.cargaSemanal ? d.cargaSemanal + 'h' : '-';
-      const dataNasc = d.data_nascimento || (d.ano_nascimento ? `Ano: ${d.ano_nascimento}` : '-');
+      const deveMostrarBolsa = cursoExigeEstagio(d.curso, d.tipo_contrato);
 
-      info.innerHTML = `
+      let html = `
         ${card('Nome', d.nome)}
         ${card('CPF', d.cpf)}
-        ${card('RA', d.ra)}
-        ${card('Empresa', d.empresa)}
+        ${card('RA', d.ra || '-')}
+        ${card('Empresa', d.empresa || '-')}
         ${card('Renovou Contrato', renovou)}
-        ${card('Início do Contrato', d.inicio_trabalho || '-')}
-        ${card('Fim do Contrato', d.fim_trabalho || '-')}
-        ${card('Recebeu Bolsa', recebeu)}
-        ${card('Valor da Bolsa', 'R$ ' + bolsa)}
-        ${card('Status', d.status)}
-        ${card('Carga Semanal', carga)}
-        ${card('Curso', d.curso)}
-        ${card('Turno', d.turno)}
-        ${card('Série/Ano', d.serie || d.ano || '-')}
-        ${card('Data de Nascimento', dataNasc)}
+        ${card('Início do Contrato', formatarDataBR(d.inicio_trabalho))}
+        ${card('Fim do Contrato', formatarDataBR(d.fim_trabalho))}
       `;
+
+      if (deveMostrarBolsa) {
+        const rb = recebeuBolsa(d.recebeu_bolsa);
+        html += card('Recebeu Bolsa', rb === null ? '-' : (rb ? 'Sim' : 'Não'));
+      }
+
+      html += `
+        ${card('Status', d.status || '-')}
+        ${card('Carga Semanal', carga)}
+        ${card('Curso', d.curso || '-')}
+        ${card('Turno', d.turno || '-')}
+        ${card('Série/Ano', d.serie || d.ano || '-')}
+        ${card('Data de Nascimento', formatarDataBR(d.data_nascimento))}
+      `;
+
+      info.innerHTML = html;
     }
 
     (async function init() {
       msg.textContent = 'Carregando seus dados...';
       try {
-        const res = await fetch('php/get_me.php');
-        const data = await res.json();
+        // URL RELATIVA + credenciais (mantém cookies de sessão)
+        const res  = await fetch('php/get_me.php', { credentials: 'same-origin' });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch {
+          console.error('Resposta não-JSON do get_me.php:', text);
+          msg.className = 'msg error';
+          msg.textContent = 'Resposta inválida do servidor.';
+          return;
+        }
 
         if (!res.ok || !data.success) {
-          if (res.status === 401) { location.href = 'aluno_login.html'; return; }
+          if (res.status === 401) {
+            msg.className = 'msg error';
+            msg.textContent = 'Sessão expirada. Redirecionando para login...';
+            setTimeout(()=> location.href = 'aluno_login.html', 600);
+            return;
+          }
           msg.className = 'msg error';
           msg.textContent = data.message || 'Erro ao carregar dados.';
           return;
         }
+
+        const d = data.data || {};
+        if ('recebeu_bolsa' in d)   d.recebeu_bolsa   = (d.recebeu_bolsa == null ? null : Number(d.recebeu_bolsa));
+        if ('renovou_contrato' in d) d.renovou_contrato = Number(d.renovou_contrato);
+
         msg.textContent = '';
-        render(data.data);
+        render(d);
       } catch (e) {
+        console.error(e);
         msg.className = 'msg error';
         msg.textContent = 'Falha de rede ao carregar dados.';
       }

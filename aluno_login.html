@@ -35,7 +35,12 @@
 
       try {
         const fd = new FormData(form);
-        const res = await fetch('php/aluno_login.php', { method: 'POST', body: fd });
+        const res = await fetch('php/aluno_login.php', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin'   // 👈 garante envio do cookie
+  });
+
         const data = await res.json();
 
         if (res.ok && data.success) {
