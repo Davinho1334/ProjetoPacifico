@@ -254,34 +254,33 @@
   const $qs  = (sel)=>document.querySelector(sel);
   const $qsa = (sel)=>Array.from(document.querySelectorAll(sel));
   // ---- STATUS calc no front (garante consistência com o cron) ----
-const hojeISO = ()=> {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-};
-function normISO(x){
-  if(!x) return null;
-  const s = String(x).trim();
-  if(!s) return null;
-  // aceita 'yyyy-mm-dd' ou 'dd/mm/yyyy'
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const [d,m,y] = s.split('/');
-    return `${y}-${m}-${d}`;
+  const hojeISO = ()=> {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  };
+  function normISO(x){
+    if(!x) return null;
+    const s = String(x).trim();
+    if(!s) return null;
+    // aceita 'yyyy-mm-dd' ou 'dd/mm/yyyy'
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [d,m,y] = s.split('/');
+      return `${y}-${m}-${d}`;
+    }
+    return null;
   }
-  return null;
-}
-function statusCalculado(inicio, fim){
-  const hoje = hojeISO();
-  const ini = normISO(inicio);
-  const f   = normISO(fim);
-  if (f && f < hoje) return 'Encerrado';
-  if (ini && f && ini <= hoje && f >= hoje) return 'Em andamento';
-  return 'Disponível';
-}
-
+  function statusCalculado(inicio, fim){
+    const hoje = hojeISO();
+    const ini = normISO(inicio);
+    const f   = normISO(fim);
+    if (f && f < hoje) return 'Encerrado';
+    if (ini && f && ini <= hoje && f >= hoje) return 'Em andamento';
+    return 'Disponível';
+  }
 
   // Cursos com estágio obrigatório
   const OBRIGATORIOS = new Set(['Enfermagem', 'Análises Clínicas', 'Farmácia']);
@@ -466,7 +465,7 @@ function statusCalculado(inicio, fim){
         <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
       `;
 
-      // ----- AÇÕES RÁPIDAS: recria a área com os novos botões (sem "Registrar Frequência")
+      // ----- AÇÕES RÁPIDAS
       if(acoesRapidas){
         acoesRapidas.style.display = 'block';
         acoesRapidas.innerHTML = `
@@ -484,12 +483,11 @@ function statusCalculado(inicio, fim){
           </div>
         `;
 
-        // liga PDF/Excel existentes
         $qs('#btnPdf').onclick   = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
         $qs('#btnExcel').onclick = () => window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank');
       }
 
-      // ----- Insere o EDITOR DE AGENDA na página (logo após Ações Rápidas)
+      // ----- Editor de agenda
       let editorAgenda = $qs('#editorAgenda');
       if(!editorAgenda){
         const sec = document.createElement('section');
@@ -526,7 +524,6 @@ function statusCalculado(inicio, fim){
             </small>
           </div>
         `;
-        // coloca após acoesRapidas ou no fim do main
         if(acoesRapidas && acoesRapidas.parentElement){
           acoesRapidas.parentElement.insertBefore(sec, acoesRapidas.nextSibling);
         } else {
@@ -535,7 +532,6 @@ function statusCalculado(inicio, fim){
         editorAgenda = sec;
       }
 
-      // mostrar editor e carregar dados
       editorAgenda.style.display = 'block';
       const agenda = await carregarAgenda(id);
       montarTabelasAgenda(agenda);
@@ -551,7 +547,6 @@ function statusCalculado(inicio, fim){
         montarTabelasAgenda(ag);
       };
 
-      // ligar geração dos documentos
       const btnContrato = $qs('#btnGerarContrato');
       const btnDecl = $qs('#btnGerarDeclaracao');
       if(btnContrato) btnContrato.onclick = ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank');
@@ -583,6 +578,62 @@ function statusCalculado(inicio, fim){
     });
   }
 
+  // --- helper para excluir aluno ---
+  async function excluirAluno(id, rowEl){
+  if(!id) { alert('ID inválido.'); return; }
+
+  const btn = rowEl?.querySelector?.('.btn-delete');
+  const prev = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = 'Excluindo...'; }
+
+  try {
+    // 🔁 Se o seu arquivo é plural, troque aqui:
+    const resp = await fetch('php/delete_student.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      credentials: 'same-origin',
+      body: new URLSearchParams({ id }) // se o PHP esperar aluno_id, troque para { aluno_id: id }
+    });
+
+    // Tenta JSON, senão pega texto
+    let data = null, raw = null;
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      data = await resp.json();
+    } else {
+      raw = await resp.text();
+    }
+
+    // Sessão expirada / login redirecionado (HTML)
+    if (!resp.ok) {
+      const msg = (data && (data.message || data.error)) || (raw ? raw.slice(0, 300) : 'Falha na requisição.');
+      throw new Error(msg);
+    }
+
+    if (data && data.success) {
+      // sucesso
+    } else {
+      // Erro informado pelo backend ou HTML
+      const servidorMsg =
+        (data && (data.message || data.error)) ||
+        (raw && ( /login|sess[aã]o|admin/i.test(raw) ? 'Sessão expirada ou sem permissão.' : raw.slice(0, 300) )) ||
+        'Falha ao excluir.';
+      throw new Error(servidorMsg);
+    }
+
+    // Remove da lista em memória e redesenha
+    allStudents = allStudents.filter(s => String(s.id) !== String(id));
+    applyFilters();
+    alert('Aluno excluído com sucesso.');
+  } catch (e){
+    alert('Erro ao excluir: ' + e.message);
+    console.error(e);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = prev; }
+  }
+}
+
+
   function renderTable(list){
     const tbody = $qs('#studentsTable tbody');
     if(!tbody) return;
@@ -590,6 +641,7 @@ function statusCalculado(inicio, fim){
       tbody.innerHTML = '<tr><td colspan="8">Nenhum aluno encontrado</td></tr>';
       return;
     }
+
     tbody.innerHTML = list.map(s => `
       <tr data-id="${s.id}">
         <td class="ra-cell">${s.ra ? s.ra : ''}</td>
@@ -600,11 +652,14 @@ function statusCalculado(inicio, fim){
         <td>${s.serie || ''}</td>
         <td>${s.status || ''}</td>
         <td>
-          <button class="btn btn-small btn-view" data-id="${s.id}">Abrir</button>
-          <button class="btn btn-small btn-edit" data-id="${s.id}">Editar</button>
+          <button class="btn btn-small btn-view"   data-id="${s.id}">Abrir</button>
+          <button class="btn btn-small btn-edit"   data-id="${s.id}">Editar</button>
+          <button class="btn btn-small btn-delete" data-id="${s.id}">Excluir</button>
         </td>
       </tr>
     `).join('');
+
+    // Ações
     $qsa('.btn-view').forEach(b => b.addEventListener('click', e => {
       const id = e.currentTarget.dataset.id;
       location.href = `aluno_dashboard.html?id=${id}`;
@@ -612,6 +667,17 @@ function statusCalculado(inicio, fim){
     $qsa('.btn-edit').forEach(b => b.addEventListener('click', e => {
       const id = e.currentTarget.dataset.id;
       openEditModal(id);
+    }));
+    // >>> Confirmação com nome + ID no clique
+    $qsa('.btn-delete').forEach(b => b.addEventListener('click', e => {
+      const id  = e.currentTarget.dataset.id;
+      const row = e.currentTarget.closest('tr');
+      const nome = row?.querySelector('td:nth-child(2)')?.textContent?.trim() || 'este aluno';
+
+      const ok = confirm(`⚠️ Tem certeza que deseja excluir o estudante "${nome}" (ID ${id})?\nEsta ação é permanente e não poderá ser desfeita.`);
+      if (!ok) return;
+
+      excluirAluno(id, row);
     }));
   }
 
@@ -746,62 +812,61 @@ function statusCalculado(inicio, fim){
   const closeEditModal = ()=>{ const m=$qs('#editModal'); if(m) m.style.display = 'none'; };
 
   async function saveEdit(){
-  const empresaVal = $qs('#edit_empresa').value;
-  const cursoSel = $qs('#edit_curso').value;
-  const tipoSel  = $qs('#edit_tipo_contrato').value;
-  const precisa  = mostraCampoBolsa(cursoSel, tipoSel);
-  const recebeu  = precisa ? $qs('#edit_recebeu_bolsa').value : '';
+    const empresaVal = $qs('#edit_empresa').value;
+    const cursoSel = $qs('#edit_curso').value;
+    const tipoSel  = $qs('#edit_tipo_contrato').value;
+    const precisa  = mostraCampoBolsa(cursoSel, tipoSel);
+    const recebeu  = precisa ? $qs('#edit_recebeu_bolsa').value : '';
 
-  const data = {
-    id: $qs('#edit_id').value,
-    ra: ($qs('#edit_ra').value||'').trim(),
-    curso: cursoSel.trim(),
-    turno: ($qs('#edit_turno').value||'').trim(),
-    serie: ($qs('#edit_serie').value||'').trim(),
-    status: $qs('#edit_status').value,
-    cargaSemanal: parseInt($qs('#edit_carga').value) || 0,
+    const data = {
+      id: $qs('#edit_id').value,
+      ra: ($qs('#edit_ra').value||'').trim(),
+      curso: cursoSel.trim(),
+      turno: ($qs('#edit_turno').value||'').trim(),
+      serie: ($qs('#edit_serie').value||'').trim(),
+      status: $qs('#edit_status').value,
+      cargaSemanal: parseInt($qs('#edit_carga').value) || 0,
 
-    empresa_id: empresaVal ? parseInt(empresaVal) : null,
-    inicio_trabalho: $qs('#edit_inicio').value || null,
-    fim_trabalho: $qs('#edit_fim').value || null,
-    renovou_contrato: parseInt($qs('#edit_renovou').value) || 0,
+      empresa_id: empresaVal ? parseInt(empresaVal) : null,
+      inicio_trabalho: $qs('#edit_inicio').value || null,
+      fim_trabalho: $qs('#edit_fim').value || null,
+      renovou_contrato: parseInt($qs('#edit_renovou').value) || 0,
 
-    contato_aluno: ($qs('#edit_contato').value||'').trim(),
-    idade: parseInt($qs('#edit_idade').value) || null,
-    relatorio: ($qs('#edit_relatorio').value||'').trim(),
-    observacao: ($qs('#edit_observacao').value||'').trim(),
-    tipo_contrato: tipoSel || '',
+      contato_aluno: ($qs('#edit_contato').value||'').trim(),
+      idade: parseInt($qs('#edit_idade').value) || null,
+      relatorio: ($qs('#edit_relatorio').value||'').trim(),
+      observacao: ($qs('#edit_observacao').value||'').trim(),
+      tipo_contrato: tipoSel || '',
 
-    recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu))
-  };
+      recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu))
+    };
 
-  try {
-    const res = await fetch('php/edit_student.php', {
-      method:'POST',
-      headers: {'Content-Type':'application/json'},
-      credentials: 'same-origin',
-      body: JSON.stringify(data)
-    });
-    const json = await res.json();
+    try {
+      const res = await fetch('php/edit_student.php', {
+        method:'POST',
+        headers: {'Content-Type':'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
 
-    if(json.success){
-      const idx = allStudents.findIndex(x=>String(x.id)===String(data.id));
-      if(idx > -1){
-        const empresaName = companiesById[String(data.empresa_id)] || (allStudents[idx].empresa || '');
-        const novoStatus  = statusCalculado(data.inicio_trabalho, data.fim_trabalho) || data.status;
-        allStudents[idx]  = { ...allStudents[idx], ...data, status: novoStatus, empresa: empresaName };
+      if(json.success){
+        const idx = allStudents.findIndex(x=>String(x.id)===String(data.id));
+        if(idx > -1){
+          const empresaName = companiesById[String(data.empresa_id)] || (allStudents[idx].empresa || '');
+          const novoStatus  = statusCalculado(data.inicio_trabalho, data.fim_trabalho) || data.status;
+          allStudents[idx]  = { ...allStudents[idx], ...data, status: novoStatus, empresa: empresaName };
+        }
+        applyFilters();
+        closeEditModal();
+        alert('Atualizado com sucesso.');
+      } else {
+        alert('Erro: ' + (json.error || json.message || 'não foi possível salvar'));
       }
-      applyFilters();
-      closeEditModal();
-      alert('Atualizado com sucesso.');
-    } else {
-      alert('Erro: ' + (json.error || json.message || 'não foi possível salvar'));
+    } catch(err){
+      alert('Erro de rede: ' + err.message);
     }
-  } catch(err){
-    alert('Erro de rede: ' + err.message);
   }
-}
-
 
   // ---------- init ----------
   (async function init(){
