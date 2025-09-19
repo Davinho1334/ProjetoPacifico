@@ -38,6 +38,7 @@ $ra    = trim($_POST['ra']    ?? '');
 $curso = trim($_POST['curso'] ?? '');
 $turno = trim($_POST['turno'] ?? '');
 $serie = trim($_POST['serie'] ?? '');
+$contato_aluno = trim($_POST['contato_aluno'] ?? ''); // Novo campo
 
 // Data de nascimento (vem como dd/mm/aaaa do formulário)
 $dataNascBr = trim($_POST['data_nascimento'] ?? '');
@@ -64,7 +65,7 @@ if ($dataNascBr !== '') {
 }
 
 // Validações mínimas
-if ($nome === '' || $cpf === '' || $curso === '' || $turno === '' || $serie === '') {
+if ($nome === '' || $cpf === '' || $curso === '' || $turno === '' || $serie === '' || $contato_aluno === '') {
   jexit([
     'success' => false,
     'message' => 'Preencha todos os campos obrigatórios.',
@@ -74,9 +75,9 @@ if ($nome === '' || $cpf === '' || $curso === '' || $turno === '' || $serie === 
 
 // -------------------- Insert --------------------
 $sql = "INSERT INTO alunos
-          (nome, cpf, ra, data_nascimento, curso, turno, serie)
+          (nome, cpf, ra, data_nascimento, curso, turno, serie, contato_aluno)
         VALUES
-          (:nome, :cpf, :ra, :data_nascimento, :curso, :turno, :serie)";
+          (:nome, :cpf, :ra, :data_nascimento, :curso, :turno, :serie, :contato_aluno)";
 
 try {
   if ($pdo) {
@@ -89,6 +90,7 @@ try {
       ':curso'            => $curso,
       ':turno'            => $turno,
       ':serie'            => $serie,
+      ':contato_aluno'    => $contato_aluno
     ]);
 
     if (!$ok) {
@@ -103,8 +105,8 @@ try {
 
   } elseif ($mysqli) {
     $sql = "INSERT INTO alunos
-              (nome, cpf, ra, data_nascimento, curso, turno, serie)
-            VALUES (?,?,?,?,?,?,?)";
+              (nome, cpf, ra, data_nascimento, curso, turno, serie, contato_aluno)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     $stmt = $mysqli->prepare($sql);
     if (!$stmt) {
       jexit([
@@ -128,7 +130,8 @@ try {
       $dataParam,
       $curso,
       $turno,
-      $serie
+      $serie,
+      $contato_aluno
     );
 
     $ok = $stmt->execute();

@@ -89,3 +89,106 @@ async function salvarAluno(id){
 
 // exporta para uso inline (se necessário)
 window.salvarAluno = salvarAluno;
+
+
+// ===================================================================
+// MÁSCARAS (CPF, CNPJ, Telefone (DDD) e CEP)  ------------------------
+// ===================================================================
+
+// mantém apenas dígitos
+function __onlyDigits__(s){ return String(s || '').replace(/\D/g, ''); }
+
+// CPF -> 000.000.000-00
+function formatCPFMask(value){
+  const v = __onlyDigits__(value).slice(0, 11);
+  if (v.length <= 3) return v;
+  if (v.length <= 6) return v.replace(/^(\d{3})(\d+)/, '$1.$2');
+  if (v.length <= 9) return v.replace(/^(\d{3})(\d{3})(\d+)/, '$1.$2.$3');
+  return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2}).*/, '$1.$2.$3-$4');
+}
+
+// CNPJ -> 00.000.000/0000-00
+function formatCNPJMask(value){
+  const v = __onlyDigits__(value).slice(0, 14);
+  if (v.length <= 2)  return v;
+  if (v.length <= 5)  return v.replace(/^(\d{2})(\d+)/, '$1.$2');
+  if (v.length <= 8)  return v.replace(/^(\d{2})(\d{3})(\d+)/, '$1.$2.$3');
+  if (v.length <= 12) return v.replace(/^(\d{2})(\d{3})(\d{3})(\d+)/, '$1.$2.$3/$4');
+  return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2}).*/, '$1.$2.$3/$4-$5');
+}
+
+// CEP -> 00000-000
+function formatCEPMask(value){
+  const v = __onlyDigits__(value).slice(0, 8);
+  if (v.length <= 5) return v;
+  return v.replace(/^(\d{5})(\d{1,3}).*/, '$1-$2');
+}
+
+// Telefone BR:
+// 10 dígitos -> (DD) 1234-5678
+// 11 dígitos -> (DD) 91234-5678
+function formatPhoneMask(value){
+  let v = __onlyDigits__(value);
+  // remove código do país se usuário digitar 55/+55
+  if (v.startsWith('55') && v.length > 10) v = v.slice(2);
+  v = v.slice(0, 11);
+  if (v.length <= 2)  return v;
+  if (v.length <= 6)  return v.replace(/^(\d{2})(\d+)/, '($1) $2');             // (DD) 123
+  if (v.length <= 10) return v.replace(/^(\d{2})(\d{4})(\d+)/, '($1) $2-$3');   // (DD) 1234-5678
+  return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');                   // (DD) 91234-5678
+}
+
+// aplica máscara mantendo o cursor aproximadamente
+function applyMaskToInput(input, formatter){
+  const start = input.selectionStart;
+  const oldLen = input.value.length;
+  input.value = formatter(input.value);
+  const newLen = input.value.length;
+  const diff = newLen - oldLen;
+  const newPos = Math.max(0, (start ?? newLen) + diff);
+  try { input.setSelectionRange(newPos, newPos); } catch(e){ /* ignore */ }
+}
+
+// inicializa em qualquer página que inclua este script
+function initInputMasks(){
+  const $ = (sel)=>Array.from(document.querySelectorAll(sel));
+
+  // CPF
+  const cpfInputs = $('input[name="cpf"], input[data-mask="cpf"]');
+  cpfInputs.forEach(input=>{
+    input.setAttribute('maxlength','14'); // 000.000.000-00
+    input.addEventListener('input', ()=>applyMaskToInput(input, formatCPFMask));
+    input.addEventListener('blur',  ()=>{ input.value = formatCPFMask(input.value); });
+  });
+
+  // CNPJ
+  const cnpjInputs = $('input[name="cnpj"], input[data-mask="cnpj"]');
+  cnpjInputs.forEach(input=>{
+    input.setAttribute('maxlength','18'); // 00.000.000/0000-00
+    input.addEventListener('input', ()=>applyMaskToInput(input, formatCNPJMask));
+    input.addEventListener('blur',  ()=>{ input.value = formatCNPJMask(input.value); });
+  });
+
+  // CEP
+  const cepInputs = $('input[name="cep"], input[data-mask="cep"]');
+  cepInputs.forEach(input=>{
+    input.setAttribute('maxlength','9'); // 00000-000
+    input.addEventListener('input', ()=>applyMaskToInput(input, formatCEPMask));
+    input.addEventListener('blur',  ()=>{ input.value = formatCEPMask(input.value); });
+  });
+
+  // Telefone (DDD)
+  const phoneInputs = $('input[name="contato_aluno"], input[name="tel"], input[name="phone"], input[data-mask="phone"]');
+  phoneInputs.forEach(input=>{
+    input.setAttribute('maxlength','15'); // (00) 90000-0000
+    input.addEventListener('input', ()=>applyMaskToInput(input, formatPhoneMask));
+    input.addEventListener('blur',  ()=>{ input.value = formatPhoneMask(input.value); });
+  });
+}
+
+// roda quando o DOM estiver pronto
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initInputMasks);
+} else {
+  initInputMasks();
+}
