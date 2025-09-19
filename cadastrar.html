@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cadastro do Aluno</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="form-container">
+    <h2>Cadastro do Aluno</h2>
+    <form id="cadastroForm" action="php/register_student.php" method="POST">
+      <label>Nome completo
+        <input required name="nome" type="text" />
+      </label>
+
+      <label>CPF
+        <input required name="cpf" type="text" maxlength="14" />
+      </label>
+
+      <label>R.A. (opcional)
+        <input name="ra" type="text" />
+      </label>
+
+      <label>Data de nascimento
+        <input required name="data_nascimento" id="dataNascimento" type="text" maxlength="10" placeholder="dd/mm/aaaa" />
+      </label>
+
+      <!-- Novo campo: Telefone do aluno -->
+      <label>Telefone
+        <input required name="contato_aluno" type="text" maxlength="15" placeholder="(00) 90000-0000" />
+      </label>
+
+      <label>Curso
+        <select required name="curso">
+          <option value="">Selecione...</option>
+          <option>Técnico em Informática</option>
+          <option>Edificações</option>
+          <option>Enfermagem</option>
+          <option>Análises Clínicas</option>
+          <option>Manutenção Automotiva</option>
+          <option>Desenvolvimento de Sistemas</option>
+          <option>Energias Renováveis</option>
+          <option>Segurança do Trabalho</option>
+          <option>Farmácia</option>
+          <option>Moda</option>
+        </select>
+      </label>
+
+      <label>Turno
+        <select name="turno" required>
+          <option value="Manhã">Manhã</option>
+          <option value="Tarde">Tarde</option>
+          <option value="Noite">Noite</option>
+        </select>
+      </label>
+
+      <label>Série
+        <select name="serie" required>
+          <option>1º</option>
+          <option>2º</option>
+          <option>3º</option>
+        </select>
+      </label>
+
+      <div class="actions">
+        <button type="submit" class="btn">Finalizar cadastro</button>
+        <a href="admin_dashboard.html" class="btn btn-outline">Voltar</a>
+      </div>
+      <div id="msg" class="msg"></div>
+    </form>
+  </main>
+
+  <script>
+    // máscara automática dd/mm/aaaa (como você já tinha)
+    (function () {
+      const inputData = document.getElementById('dataNascimento');
+      if (!inputData) return;
+      inputData.addEventListener('input', () => {
+        let v = inputData.value.replace(/\D/g, ''); // só números
+        if (v.length > 2 && v.length <= 4) {
+          v = v.replace(/^(\d{2})(\d+)/, '$1/$2');
+        } else if (v.length > 4) {
+          v = v.replace(/^(\d{2})(\d{2})(\d+)/, '$1/$2/$3');
+        }
+        inputData.value = v;
+      });
+    })();
+
+    // envio do cadastro
+    document.getElementById('cadastroForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = new FormData(e.target);
+      const msg = document.getElementById('msg');
+
+      try {
+        const res = await fetch('php/register_student.php', { method: 'POST', body: data, credentials: 'same-origin' });
+        const raw = await res.text();
+
+        let json;
+        try { json = JSON.parse(raw); } catch {
+          msg.className = 'msg error';
+          msg.innerText = 'Resposta inesperada do servidor (mostrando os primeiros 400 caracteres):\n' + raw.slice(0, 400);
+          return;
+        }
+
+        if (json.success) {
+          msg.className = 'msg success';
+          msg.innerText = json.message || 'Aluno cadastrado com sucesso.';
+        } else {
+          msg.className = 'msg error';
+          let det = [];
+          if (json.error) det.push('Erro: ' + json.error);
+          if (json.sql) det.push('SQL: ' + json.sql);
+          if (json.include_output) det.push('Saída do db.php: ' + json.include_output);
+          msg.innerText = (json.message || 'Erro no servidor') + (det.length ? '\n\n' + det.join('\n') : '');
+        }
+      } catch (err) {
+        msg.className = 'msg error';
+        msg.innerText = 'Falha de rede: ' + err.message;
+      }
+    });
+  </script>
+
+  <!-- Carregamento do script principal com quebra de cache + logs -->
+  <script>
+    window.__masks_loaded__ = false;
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[aluno] DOM pronto');
+    });
+  </script>
+
+  <script src="./script.js?v=3"
+          onload="console.log('[aluno] script.js carregado'); window.__masks_loaded__=true; if (window.initInputMasks) { try { window.initInputMasks(); console.log('[aluno] máscaras iniciadas'); } catch(e){ console.error('initInputMasks erro:', e) } }"
+          onerror="console.warn('[aluno] script.js NÃO encontrado — ativando fallback de máscara');">
+  </script>
+
+  <!-- Fallback mínimo (só entra se o script.js não carregar) -->
+  <script>
+    (function fallback(){
+      if (window.__masks_loaded__) return; // script principal carregou, não precisa
+
+      const only = s => String(s||'').replace(/\D/g,'').slice(0, 20);
+      const fCPF  = v => {
+        v = only(v).slice(0,11);
+        if (v.length<=3) return v;
+        if (v.length<=6) return v.replace(/^(\d{3})(\d+)/,'$1.$2');
+        if (v.length<=9) return v.replace(/^(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
+        return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2}).*/, '$1.$2.$3-$4');
+      };
+      const fPhone = v => {
+        v = only(v).slice(0,11);
+        if (v.length<=2) return v;
+        if (v.length<=6) return v.replace(/^(\d{2})(\d+)/,'($1) $2');
+        if (v.length<=10) return v.replace(/^(\d{2})(\d{4})(\d+)/,'($1) $2-$3');
+        return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+      };
+      const apply = (inp, fmt, max) => {
+        if (!inp) return;
+        if (max) inp.maxLength = String(max);
+        const run = () => {
+          const start = inp.selectionStart, old = inp.value.length;
+          inp.value = fmt(inp.value);
+          const diff = inp.value.length - old;
+          const pos = Math.max(0, (start??inp.value.length) + diff);
+          try { inp.setSelectionRange(pos, pos); } catch(_) {}
+        };
+        inp.addEventListener('input', run);
+        inp.addEventListener('blur',  run);
+      };
+
+      apply(document.querySelector('input[name="cpf"]'), fCPF, 14);
+      apply(document.querySelector('input[name="contato_aluno"]'), fPhone, 15);
+
+      console.warn('[aluno] fallback de máscara ativo (script.js não carregou). Verifique o caminho do arquivo.');
+    })();
+  </script>
+
+</body>
+</html>

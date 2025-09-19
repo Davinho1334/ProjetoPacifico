@@ -13,6 +13,7 @@
       <button id="logoutBtn" class="btn btn-outline">Logout</button>
       <a href="aluno_dashboard.html" class="btn btn-outline">Ver Dashboard do Aluno</a>
       <a href="empresa.html" class="btn btn-outline">Ver Cadastro de Empresas</a>
+      <a href="cadastrar.html" class="btn btn-outline">Cadastrar Aluno</a>
     </div>
   </header>
 
@@ -138,7 +139,7 @@
   function renderDashboard(list) {
     const total = list.length;
     const porStatus = {};
-    ['Em andamento', 'Encerrado', 'Ativo', 'Disponível'].forEach(s => {
+    ['Em andamento', 'Encerrado', 'Disponível'].forEach(s => {
       porStatus[s] = list.filter(x => x.status === s).length;
     });
     dashboardCards.innerHTML = `
