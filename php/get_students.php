@@ -19,7 +19,7 @@ elseif (isset($db) && $db instanceof mysqli) { $driver='mysqli'; $dbh=$db; }
 if (!$dbh) out(false,'Conexão não encontrada.');
 
 // Monta SELECT básico (inclui campos usados no dashboard)
-$baseFields = "id,nome,cpf,ra,curso,turno,serie,status,escola,cargaSemanal,empresa_id,empresa,inicio_trabalho,fim_trabalho,renovou_contrato,tipo_contrato,recebeu_bolsa";
+$baseFields = "id,nome,cpf,ra,curso,turno,serie,status,escola,cargaSemanal,empresa_id,empresa,inicio_trabalho,fim_trabalho,renovou_contrato,tipo_contrato,recebeu_bolsa, contato_aluno";
 
 // Buscar por ID?
 if (isset($_GET['id']) && $_GET['id'] !== '') {

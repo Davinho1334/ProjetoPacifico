@@ -58,6 +58,7 @@
       <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
       <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
       <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
+      <button class="btn btn-outline" id="btnWhatsApp">WhatsApp</button>
     </div>
     <small style="display:block; margin-top:.5rem; opacity:.8;">
       Dica: edite os dados do aluno pelo botão <b>Editar</b> na lista geral antes de gerar os documentos.
@@ -253,7 +254,8 @@
   // helpers
   const $qs  = (sel)=>document.querySelector(sel);
   const $qsa = (sel)=>Array.from(document.querySelectorAll(sel));
-  // ---- STATUS calc no front (garante consistência com o cron) ----
+
+  // ---- STATUS calc no front ----
   const hojeISO = ()=> {
     const d = new Date();
     const y = d.getFullYear();
@@ -265,9 +267,8 @@
     if(!x) return null;
     const s = String(x).trim();
     if(!s) return null;
-    // aceita 'yyyy-mm-dd' ou 'dd/mm/yyyy'
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;            // yyyy-mm-dd
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {                  // dd/mm/yyyy
       const [d,m,y] = s.split('/');
       return `${y}-${m}-${d}`;
     }
@@ -310,7 +311,6 @@
 
   // ---------- utilitários agenda ----------
   const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira'];
-  const pad = n => String(n).padStart(2,'0');
   function diffHoras(hhmmIni, hhmmFim){
     if(!hhmmIni || !hhmmFim) return 0;
     const [hi, mi] = hhmmIni.split(':').map(Number);
@@ -319,7 +319,6 @@
     const min = Math.max(0, fim-ini);
     return Math.round((min/60)*100)/100; // horas com 2 casas
   }
-
   function linhaAgenda(tipo, dia, ini='13:00', fim='15:00'){
     return `
       <tr data-dia="${dia}" data-tipo="${tipo}">
@@ -330,28 +329,23 @@
       </tr>
     `;
   }
-
   function montarTabelasAgenda(agenda){
     const tbT = $qs('#tbTeorica');
     const tbP = $qs('#tbPratica');
     if(!tbT || !tbP) return;
-
     tbT.innerHTML = '';
     tbP.innerHTML = '';
-
     for(let d=0; d<5; d++){
       const regT = agenda?.teorica?.find(x=>x.dia===d) || {dia:d, ini:'13:00', fim:'15:00'};
       const regP = agenda?.pratica?.find(x=>x.dia===d) || {dia:d, ini:'07:00', fim:(d===4?'':'11:00')};
       tbT.insertAdjacentHTML('beforeend', linhaAgenda('T', d, regT.ini||'', regT.fim||''));
       tbP.insertAdjacentHTML('beforeend', linhaAgenda('P', d, regP.ini||'', regP.fim||''));
     }
-
     [...document.querySelectorAll('#tbTeorica input,#tbPratica input')].forEach(inp=>{
       inp.addEventListener('change', recomputarTotaisAgenda);
     });
     recomputarTotaisAgenda();
   }
-
   function coletarAgenda(){
     const parse = (tbodyId) => {
       return [...document.querySelectorAll(`#${tbodyId} tr`)].map(tr=>{
@@ -361,12 +355,8 @@
         return {dia, ini, fim};
       }).filter(x => x.ini && x.fim);
     };
-    return {
-      teorica: parse('tbTeorica'),
-      pratica: parse('tbPratica')
-    };
+    return { teorica: parse('tbTeorica'), pratica: parse('tbPratica') };
   }
-
   function recomputarTotaisAgenda(){
     let sumT = 0, sumP = 0;
     document.querySelectorAll('#tbTeorica tr').forEach(tr=>{
@@ -386,7 +376,6 @@
     const st = $qs('#sumTeorica'); if(st) st.textContent = `${sumT} h`;
     const sp = $qs('#sumPratica'); if(sp) sp.textContent = `${sumP} h`;
   }
-
   async function carregarAgenda(id){
     try{
       const res = await fetch(`php/get_schedule.php?aluno_id=${encodeURIComponent(id)}`, {credentials:'same-origin'});
@@ -395,7 +384,6 @@
     }catch(e){}
     return { teorica:[], pratica:[] };
   }
-
   async function salvarAgenda(id){
     const agenda = coletarAgenda();
     const res = await fetch('php/save_schedule.php', {
@@ -409,7 +397,7 @@
     return true;
   }
 
-  // fetch
+  // ---------- FETCH ----------
   async function fetchAllStudents(){
     const res = await fetch('php/get_students.php?t=' + Date.now(), { credentials:'same-origin', cache:'no-store' });
     const json = await res.json();
@@ -420,13 +408,58 @@
     const res = await fetch(`php/get_students.php?id=${encodeURIComponent(id)}&t=${Date.now()}`, { credentials:'same-origin', cache:'no-store' });
     const json = await res.json();
     if(!json.success) throw new Error(json.message || 'Erro ao buscar aluno');
-    return json.data;
+    let data = json.data;
+    // alguns backends retornam dentro de {aluno: {...}} ou array
+    if (data && data.aluno) data = data.aluno;
+    if (Array.isArray(data)) data = data[0] || null;
+    return data;
   }
   async function fetchCompanies(){
     const res = await fetch('php/get_companies.php?t=' + Date.now(), { credentials:'same-origin', cache:'no-store' });
     const json = await res.json();
     if(!json.success) throw new Error(json.message || 'Erro ao buscar empresas');
     return json.data;
+  }
+
+  // ---------- TELEFONE: extração robusta ----------
+  function extractAnyPhone(raw){
+    if (raw == null) return '';
+    if (typeof raw === 'string' || typeof raw === 'number') return String(raw);
+    // array -> usa primeiro item recursivamente
+    if (Array.isArray(raw)) return extractAnyPhone(raw[0]);
+    // objeto: tenta campos comuns
+    if (typeof raw === 'object') {
+      const cand = raw.contato_aluno ?? raw.contato ?? raw.telefone ?? raw.celular ?? raw.phone ?? raw.value ?? raw.valor ?? raw.msisdn ?? null;
+      if (cand) return extractAnyPhone(cand);
+      // estrutura { ddd: '86', numero: '988776655' } ou similares
+      const ddd = raw.ddd ?? raw.area ?? raw.area_code ?? '';
+      const num = raw.numero ?? raw.number ?? raw.número ?? raw.num ?? raw.telefone ?? raw.celular ?? '';
+      if (ddd && num) return String(ddd) + String(num);
+    }
+    return '';
+  }
+
+  // normaliza para wa.me
+  function toWhatsAppDigits(raw){
+    const s = extractAnyPhone(raw);
+    let d = String(s || '').replace(/\D+/g,''); // só dígitos
+    if(!d) return '';
+    if (d.startsWith('55')) {
+      d = d.replace(/^55(0+)/,'55');
+      return (d.length===12 || d.length===13) ? d : '';
+    } else {
+      return (d.length===10 || d.length===11) ? ('55'+d) : '';
+    }
+  }
+
+  // plano C: buscar telefone direto no backend
+  async function fetchPhoneById(id){
+    try{
+      const r = await fetch(`php/get_student_phone.php?id=${encodeURIComponent(id)}&t=${Date.now()}`, {credentials:'same-origin', cache:'no-store'});
+      const j = await r.json();
+      if (j && j.success && j.contato != null) return j.contato;
+    }catch(e){}
+    return '';
   }
 
   // ---------- visão individual ----------
@@ -446,6 +479,10 @@
       else if(aluno.empresa) empresaNome = aluno.empresa;
       else if(aluno.empresa_id && companiesById[String(aluno.empresa_id)]) empresaNome = companiesById[String(aluno.empresa_id)];
 
+      const phoneRaw = extractAnyPhone(
+        aluno.contato_aluno ?? aluno.contato ?? aluno.telefone ?? aluno.celular ?? aluno.phone ?? aluno
+      ); // se vier um objeto telefone, também extrai
+
       infoAluno.innerHTML = `
         <div class="card"><strong>Nome:</strong> ${aluno.nome}</div>
         <div class="card"><strong>CPF:</strong> ${aluno.cpf}</div>
@@ -455,14 +492,12 @@
         <div class="card"><strong>Série:</strong> ${aluno.serie || '-'}</div>
         <div class="card"><strong>Status:</strong> ${statusCalculado(aluno.inicio_trabalho, aluno.fim_trabalho) || aluno.status || '-'}</div>
         <div class="card"><strong>Carga Semanal:</strong> ${aluno.cargaSemanal || 0}h</div>
-        <div class="card"><strong>Recebeu bolsa?</strong> ${
-          aluno.recebeu_bolsa == null ? '-' : (Number(aluno.recebeu_bolsa) ? 'Sim' : 'Não')
-        }</div>
+        <div class="card"><strong>Recebeu bolsa?</strong> ${aluno.recebeu_bolsa == null ? '-' : (Number(aluno.recebeu_bolsa) ? 'Sim' : 'Não')}</div>
         <div class="card"><strong>Empresa:</strong> ${empresaNome}</div>
-        <!-- 🔄 ALTERAÇÃO AQUI: usa formatarDataBR(...) nas datas -->
         <div class="card"><strong>Início Trabalho:</strong> ${formatarDataBR(aluno.inicio_trabalho)}</div>
         <div class="card"><strong>Fim Trabalho:</strong> ${formatarDataBR(aluno.fim_trabalho)}</div>
         <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
+        <div class="card"><strong>Telefone:</strong> ${phoneRaw || '-'}</div>
       `;
 
       // ----- AÇÕES RÁPIDAS
@@ -476,15 +511,47 @@
               <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
               <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
               <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
+              <button class="btn btn-outline" id="btnWhatsApp">WhatsApp</button>
             </div>
             <small style="display:block; margin-top:.5rem; opacity:.8;">
               Dica: edite os dados do aluno pelo botão <b>Editar</b> na lista geral antes de gerar os documentos.
             </small>
           </div>
         `;
-
         $qs('#btnPdf').onclick   = () => window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank');
         $qs('#btnExcel').onclick = () => window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank');
+
+        const btnContrato = $qs('#btnGerarContrato');
+        const btnDecl     = $qs('#btnGerarDeclaracao');
+        const btnWhatsApp = $qs('#btnWhatsApp');
+        if(btnContrato) btnContrato.onclick = ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank');
+        if(btnDecl)     btnDecl.onclick     = ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank');
+
+        if (btnWhatsApp) {
+          btnWhatsApp.onclick = async () => {
+            // 1) do objeto atual (aceitando objeto/array/campos separados)
+            let raw =
+              aluno.contato_aluno ?? aluno.contato ?? aluno.telefone ?? aluno.celular ?? aluno.phone ?? aluno;
+
+            // 2) se vazio, tenta da lista geral
+            if (!raw && allStudents.length) {
+              const s = allStudents.find(x => String(x.id) === String(id));
+              raw = s?.contato_aluno ?? s?.contato ?? s?.telefone ?? s?.celular ?? s?.phone ?? s;
+            }
+
+            // 3) se ainda vazio, endpoint dedicado
+            if (!raw) raw = await fetchPhoneById(id);
+
+            const digits = toWhatsAppDigits(raw);
+            if (!digits) {
+              const shown = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+              console.warn('[WhatsApp] Telefone bruto recebido:', shown);
+              alert('Número de telefone inválido ou não informado.');
+              return;
+            }
+            window.open(`https://wa.me/${digits}`, '_blank');
+          };
+        }
       }
 
       // ----- Editor de agenda
@@ -531,7 +598,6 @@
         }
         editorAgenda = sec;
       }
-
       editorAgenda.style.display = 'block';
       const agenda = await carregarAgenda(id);
       montarTabelasAgenda(agenda);
@@ -547,11 +613,6 @@
         montarTabelasAgenda(ag);
       };
 
-      const btnContrato = $qs('#btnGerarContrato');
-      const btnDecl = $qs('#btnGerarDeclaracao');
-      if(btnContrato) btnContrato.onclick = ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank');
-      if(btnDecl)     btnDecl.onclick     = ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank');
-
     } catch(err){
       infoAluno.innerHTML = `<div class="card">Erro: ${err.message}</div>`;
       if(acoesRapidas) acoesRapidas.style.display = 'none';
@@ -566,10 +627,8 @@
   function buildFiltersUI(list){
     const cursoSel  = $qs('#filterCurso');
     const escolaSel = $qs('#filterEscola');
-
     if(cursoSel)  cursoSel.innerHTML  = '<option value="">Todos</option>';
     if(escolaSel) escolaSel.innerHTML = '<option value="">Todos</option>';
-
     uniqueValues(list, 'curso').forEach(c => {
       const o = document.createElement('option'); o.value = c; o.textContent = c; if(cursoSel) cursoSel.appendChild(o);
     });
@@ -580,59 +639,42 @@
 
   // --- helper para excluir aluno ---
   async function excluirAluno(id, rowEl){
-  if(!id) { alert('ID inválido.'); return; }
-
-  const btn = rowEl?.querySelector?.('.btn-delete');
-  const prev = btn ? btn.textContent : null;
-  if(btn){ btn.disabled = true; btn.textContent = 'Excluindo...'; }
-
-  try {
-    // 🔁 Se o seu arquivo é plural, troque aqui:
-    const resp = await fetch('php/delete_student.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      credentials: 'same-origin',
-      body: new URLSearchParams({ id }) // se o PHP esperar aluno_id, troque para { aluno_id: id }
-    });
-
-    // Tenta JSON, senão pega texto
-    let data = null, raw = null;
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      data = await resp.json();
-    } else {
-      raw = await resp.text();
+    if(!id) { alert('ID inválido.'); return; }
+    const btn = rowEl?.querySelector?.('.btn-delete');
+    const prev = btn ? btn.textContent : null;
+    if(btn){ btn.disabled = true; btn.textContent = 'Excluindo...'; }
+    try {
+      const resp = await fetch('php/delete_student.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        credentials: 'same-origin',
+        body: new URLSearchParams({ id })
+      });
+      let data = null, raw = null;
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('application/json')) data = await resp.json();
+      else raw = await resp.text();
+      if (!resp.ok) {
+        const msg = (data && (data.message || data.error)) || (raw ? raw.slice(0, 300) : 'Falha na requisição.');
+        throw new Error(msg);
+      }
+      if (!(data && data.success)) {
+        const servidorMsg =
+          (data && (data.message || data.error)) ||
+          (raw && ( /login|sess[aã]o|admin/i.test(raw) ? 'Sessão expirada ou sem permissão.' : raw.slice(0, 300) )) ||
+          'Falha ao excluir.';
+        throw new Error(servidorMsg);
+      }
+      allStudents = allStudents.filter(s => String(s.id) !== String(id));
+      applyFilters();
+      alert('Aluno excluído com sucesso.');
+    } catch (e){
+      alert('Erro ao excluir: ' + e.message);
+      console.error(e);
+    } finally {
+      if(btn){ btn.disabled = false; btn.textContent = prev; }
     }
-
-    // Sessão expirada / login redirecionado (HTML)
-    if (!resp.ok) {
-      const msg = (data && (data.message || data.error)) || (raw ? raw.slice(0, 300) : 'Falha na requisição.');
-      throw new Error(msg);
-    }
-
-    if (data && data.success) {
-      // sucesso
-    } else {
-      // Erro informado pelo backend ou HTML
-      const servidorMsg =
-        (data && (data.message || data.error)) ||
-        (raw && ( /login|sess[aã]o|admin/i.test(raw) ? 'Sessão expirada ou sem permissão.' : raw.slice(0, 300) )) ||
-        'Falha ao excluir.';
-      throw new Error(servidorMsg);
-    }
-
-    // Remove da lista em memória e redesenha
-    allStudents = allStudents.filter(s => String(s.id) !== String(id));
-    applyFilters();
-    alert('Aluno excluído com sucesso.');
-  } catch (e){
-    alert('Erro ao excluir: ' + e.message);
-    console.error(e);
-  } finally {
-    if(btn){ btn.disabled = false; btn.textContent = prev; }
   }
-}
-
 
   function renderTable(list){
     const tbody = $qs('#studentsTable tbody');
@@ -641,7 +683,6 @@
       tbody.innerHTML = '<tr><td colspan="8">Nenhum aluno encontrado</td></tr>';
       return;
     }
-
     tbody.innerHTML = list.map(s => `
       <tr data-id="${s.id}">
         <td class="ra-cell">${s.ra ? s.ra : ''}</td>
@@ -658,7 +699,6 @@
         </td>
       </tr>
     `).join('');
-
     // Ações
     $qsa('.btn-view').forEach(b => b.addEventListener('click', e => {
       const id = e.currentTarget.dataset.id;
@@ -668,15 +708,12 @@
       const id = e.currentTarget.dataset.id;
       openEditModal(id);
     }));
-    // >>> Confirmação com nome + ID no clique
     $qsa('.btn-delete').forEach(b => b.addEventListener('click', e => {
       const id  = e.currentTarget.dataset.id;
       const row = e.currentTarget.closest('tr');
       const nome = row?.querySelector('td:nth-child(2)')?.textContent?.trim() || 'este aluno';
-
       const ok = confirm(`⚠️ Tem certeza que deseja excluir o estudante "${nome}" (ID ${id})?\nEsta ação é permanente e não poderá ser desfeita.`);
       if (!ok) return;
-
       excluirAluno(id, row);
     }));
   }
@@ -690,10 +727,8 @@
   function renderCharts(list){
     const statuses = ['Em andamento','Encerrado','Disponível'];
     const statusCounts = statuses.map(s => list.filter(x => x.status === s).length);
-
     const cursos = uniqueValues(list, 'curso');
     const cursoCounts = cursos.map(c => list.filter(x => x.curso === c).length);
-
     const estagiando = list.filter(x => String(x.tipo_contrato||'') === 'Estágio');
     const estagiandoObrig = estagiando.filter(x => OBRIGATORIOS.has(String(x.curso||'').trim()));
     const comBolsa  = estagiandoObrig.filter(x => Number(x.recebeu_bolsa) === 1).length;
@@ -702,11 +737,7 @@
     safeDestroyChart('chartStatus', 'chartStatus');
     const ctxS = $qs('#chartStatus')?.getContext?.('2d');
     if(ctxS){
-      chartStatus = new Chart(ctxS, {
-        type:'doughnut',
-        data: { labels: statuses, datasets:[{ data: statusCounts }]},
-        options:{ responsive:true }
-      });
+      chartStatus = new Chart(ctxS, { type:'doughnut', data: { labels: statuses, datasets:[{ data: statusCounts }]}, options:{ responsive:true } });
     }
 
     safeDestroyChart('chartCurso', 'chartCurso');
@@ -722,11 +753,7 @@
     safeDestroyChart('chartEstagioBolsa', 'chartEstagioBolsa');
     const ctxE = $qs('#chartEstagioBolsa')?.getContext?.('2d');
     if(ctxE){
-      window.chartEstagioBolsa = new Chart(ctxE, {
-        type:'doughnut',
-        data:{ labels:['Com bolsa','Sem bolsa'], datasets:[{ data:[comBolsa, semBolsa] }]},
-        options:{ responsive:true }
-      });
+      window.chartEstagioBolsa = new Chart(ctxE, { type:'doughnut', data:{ labels:['Com bolsa','Sem bolsa'], datasets:[{ data:[comBolsa, semBolsa] }]}, options:{ responsive:true } });
     }
   }
 
@@ -735,7 +762,6 @@
     const curso  = $qs('#filterCurso')?.value || '';
     const escola = $qs('#filterEscola')?.value || '';
     const q = ($qs('#filterSearch')?.value || '').trim().toLowerCase();
-
     let filtered = allStudents.slice();
     if(status) filtered = filtered.filter(x => x.status === status);
     if(curso)  filtered = filtered.filter(x => x.curso === curso);
@@ -745,7 +771,6 @@
       (x.cpf||'').toLowerCase().includes(q)  ||
       (x.ra||'').toLowerCase().includes(q)
     );
-
     renderTable(filtered);
     renderCharts(filtered);
   }
@@ -767,7 +792,6 @@
   function openEditModal(id){
     const st = allStudents.find(x => String(x.id) === String(id));
     if(!st) return alert('Aluno não encontrado');
-
     $qs('#edit_id').value   = st.id;
     $qs('#edit_nome').value = st.nome || '';
     $qs('#edit_cpf').value  = st.cpf || '';
@@ -778,7 +802,7 @@
     $qs('#edit_status').value= st.status || 'Disponível';
     $qs('#edit_carga').value = st.cargaSemanal || 0;
 
-    $qs('#edit_contato').value   = st.contato_aluno || '';
+    $qs('#edit_contato').value   = extractAnyPhone(st.contato_aluno ?? st.contato ?? st.telefone ?? st.celular ?? st.phone ?? st);
     $qs('#edit_idade').value     = st.idade || '';
     $qs('#edit_relatorio').value = st.relatorio || '';
     $qs('#edit_observacao').value= st.observacao || '';
@@ -791,7 +815,6 @@
     $qs('#edit_fim').value      = st.fim_trabalho || '';
     $qs('#edit_renovou').value  = (st.renovou_contrato != null) ? st.renovou_contrato : '0';
 
-    // Recebeu bolsa? (condicional)
     const vis = mostraCampoBolsa(st.curso, st.tipo_contrato);
     $qs('#wrap_recebeu_bolsa').style.display = vis ? 'block' : 'none';
     if (st.recebeu_bolsa == null) $qs('#edit_recebeu_bolsa').value = '';
@@ -832,12 +855,11 @@
       fim_trabalho: $qs('#edit_fim').value || null,
       renovou_contrato: parseInt($qs('#edit_renovou').value) || 0,
 
-      contato_aluno: ($qs('#edit_contato').value||'').trim(),
+      contato_aluno: extractAnyPhone(($qs('#edit_contato').value||'').trim()),
       idade: parseInt($qs('#edit_idade').value) || null,
       relatorio: ($qs('#edit_relatorio').value||'').trim(),
       observacao: ($qs('#edit_observacao').value||'').trim(),
       tipo_contrato: tipoSel || '',
-
       recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu))
     };
 
@@ -871,7 +893,9 @@
   // ---------- init ----------
   (async function init(){
     try {
-      allCompanies = await fetchCompanies();
+      const res = await fetch('php/get_companies.php?t=' + Date.now(), { credentials:'same-origin', cache:'no-store' });
+      const json = await res.json();
+      if(json.success) allCompanies = json.data;
       companiesById = {};
       allCompanies.forEach(c => { companiesById[String(c.id)] = c.nome || c.razao_social || c.name || ''; });
     } catch(e){
@@ -895,25 +919,15 @@
           const empId   = s.empresa_id ?? s.empresa ?? '';
           const empName = (empId && companiesById[String(empId)]) ? companiesById[String(empId)] : (typeof s.empresa === 'string' ? s.empresa : '');
           return {
-            id: s.id,
-            nome: s.nome,
-            cpf: s.cpf,
-            ra: s.ra || '',
-            curso: s.curso || '',
-            turno: s.turno || '',
-            serie: s.serie || '',
+            id: s.id, nome: s.nome, cpf: s.cpf, ra: s.ra || '',
+            curso: s.curso || '', turno: s.turno || '', serie: s.serie || '',
             status: statusCalculado(s.inicio_trabalho, s.fim_trabalho) || s.status || '',
-            escola: s.escola || '',
-            cargaSemanal: Number(s.cargaSemanal || 0),
-
+            escola: s.escola || '', cargaSemanal: Number(s.cargaSemanal || 0),
             recebeu_bolsa: (s.recebeu_bolsa == null ? null : Number(s.recebeu_bolsa) ? 1 : 0),
-
-            empresa_id: empId || '',
-            empresa: empName || '',
-            inicio_trabalho: s.inicio_trabalho || '',
-            fim_trabalho: s.fim_trabalho || '',
-            renovou_contrato: s.renovou_contrato ?? '0',
-            tipo_contrato: s.tipo_contrato || ''
+            empresa_id: empId || '', empresa: empName || '',
+            inicio_trabalho: s.inicio_trabalho || '', fim_trabalho: s.fim_trabalho || '',
+            renovou_contrato: s.renovou_contrato ?? '0', tipo_contrato: s.tipo_contrato || '',
+            contato_aluno: extractAnyPhone(s.contato_aluno ?? s.contato ?? s.telefone ?? s.celular ?? s.phone ?? s)
           };
         });
 
@@ -943,8 +957,6 @@
     }
   })();
 </script>
-
-
 
   <style>
     .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); }
