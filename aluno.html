@@ -5,8 +5,234 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cadastro do Aluno</title>
   <link rel="stylesheet" href="css/style.css" />
+   <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <style>
+  /* =========================================================
+     ALUNO.HTML — Gestão de Alunos (fix inputs/selects)
+     Padrão azul + glass consistente com o resto do site
+  ========================================================== */
+
+  :root{
+    --bg-1:#0b0f14;
+    --bg-2:#0e1520;
+    --text:#e8f1ff;
+    --text-muted:#a9b8d1;
+    --primary:#7bd4ff;
+    --primary-2:#6aa8ff;
+    --stroke:rgba(255,255,255,.14);
+    --stroke-strong:rgba(255,255,255,.28);
+    --ring: rgba(123,212,255,.55);
+    --ring-strong: rgba(123,212,255,.9);
+    --card-glass1: rgba(255,255,255,.06);
+    --card-glass2: rgba(255,255,255,.02);
+    --shadow:0 14px 36px rgba(0,0,0,.38);
+  }
+
+  html, body{
+    background:
+      radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.12), transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.10), transparent 55%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    color:var(--text);
+    font-family: Arial, sans-serif;
+  }
+
+  /* ===== Topbar (se houver) ===== */
+  .topbar{
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px;
+    background:linear-gradient(135deg, rgba(12,18,28,.65), rgba(20,30,44,.55));
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom:1px solid var(--stroke);
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+  }
+  .topbar h1{ margin:0; font-size:1.28rem; color:var(--primary); letter-spacing:.02em; }
+
+  /* ===== Container ===== */
+  .container{
+    width:100%;
+    max-width:1280px;
+    margin-inline:auto;
+    padding:20px;
+  }
+
+  /* ===== Cartão/Form ===== */
+  .form-container,
+  .card{
+    background:linear-gradient(160deg, var(--card-glass1), var(--card-glass2));
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border:1px solid var(--stroke);
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    padding:22px;
+  }
+  .form-container{ width:min(96vw, 780px); margin:24px auto; }
+  .form-container h2{ margin:0 0 16px 0; color:var(--primary); letter-spacing:.02em; }
+
+  .form-container form{ display:grid; gap:14px; }
+
+  /* ===== Inputs / Textareas / Selects — FIXES ===== */
+  .form-container label{
+    display:grid; gap:8px;
+    font-weight:600; color:var(--text);
+  }
+
+  .form-container input[type="text"],
+  .form-container input[type="email"],
+  .form-container input[type="tel"],
+  .form-container input[type="date"],
+  .form-container input[type="number"],
+  .form-container input[type="password"],
+  .form-container textarea,
+  .form-container select{
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    width:100%;
+    min-height:44px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid var(--stroke);
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+    color:var(--text);
+    transition:border-color .18s, box-shadow .18s, background .18s;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    outline: none;            /* remove aquela borda azul grossa */
+  }
+  .form-container textarea{ min-height:100px; resize:vertical; }
+
+  /* Placeholders */
+  .form-container input::placeholder,
+  .form-container textarea::placeholder{ color:var(--text-muted); opacity:.9; }
+
+  /* Foco consistente (remove highlight do sistema e aplica ring) */
+  .form-container input:focus,
+  .form-container textarea:focus,
+  .form-container select:focus{
+    border-color: var(--primary);
+    box-shadow: 0 0 0 6px rgba(123,212,255,.16);
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
+  }
+
+  /* Autofill Chrome (evita amarelo) */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus{
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0px 1000px rgba(255,255,255,.06) inset, 0 0 0 6px rgba(123,212,255,.0);
+    transition: background-color 9999s ease-in-out 0s;
+    caret-color: var(--text);
+    border-color: var(--stroke);
+  }
+
+  /* ----- SELECT: seta custom e dropdown legível ----- */
+  .form-container select{
+    padding-right:40px;
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0)),
+      url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%237bd4ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position: right 12px center;
+  }
+  /* esconde seta antiga no IE */
+  select::-ms-expand{ display:none; }
+
+  /* cor das opções do dropdown (melhora contraste no dark) */
+  select option{
+    background:#0f141b;   /* fundo escuro na lista */
+    color:#e8f1ff;
+  }
+  select option:disabled{
+    color:#7a8aa5;        /* opções desabilitadas ficam mais claras, mas legíveis */
+  }
+
+  /* Inputs disabled/read-only */
+  .form-container input[disabled],
+  .form-container select[disabled],
+  .form-container textarea[disabled],
+  .form-container input[readonly],
+  .form-container textarea[readonly]{
+    opacity:.7;
+    cursor:not-allowed;
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  }
+
+  /* ===== Botões ===== */
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px; }
+
+  .btn{
+    border:1px solid rgba(255,255,255,.10);
+    background:linear-gradient(135deg, var(--primary), var(--primary-2));
+    color:#0b0f14;
+    padding:10px 14px;
+    border-radius:12px;
+    font-weight:600;
+    cursor:pointer;
+    transition: transform .12s, box-shadow .25s, background .25s, border-color .25s, color .25s;
+  }
+  .btn:hover{ transform:translateY(-1px); box-shadow:0 0 0 6px rgba(123,212,255,.18); }
+  .btn:active{ transform:translateY(0); }
+
+  .btn.btn-outline{
+    background:transparent;
+    color:var(--primary);
+    border-color:var(--primary);
+  }
+  .btn.btn-outline:hover{ background:rgba(123,212,255,.12); color:#ecf8ff; }
+
+  /* ===== Mensagens ===== */
+  .msg{
+    margin-top:8px; padding:12px 14px; border-radius:12px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--text-muted);
+  }
+  .msg.error{
+    background:rgba(255,77,77,.10);
+    border-color:rgba(255,77,77,.45);
+    color:#ffd7d7;
+  }
+
+  /* ===== Acessibilidade: foco visível nos botões ===== */
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 var(--ring-strong), 0 0 0 0 rgba(123,212,255,0); }
+    70%  { box-shadow: 0 0 0 7px rgba(123,212,255,.35), 0 0 0 0 rgba(123,212,255,0); }
+    100% { box-shadow: 0 0 0 12px rgba(123,212,255,0), 0 0 0 0 rgba(123,212,255,0); }
+  }
+  .btn:focus-visible, .actions .btn:focus-visible{
+    outline:2px solid var(--ring-strong);
+    outline-offset:2px;
+    animation:pulseRing 1.05s ease-out;
+  }
+
+  /* ===== Responsividade ===== */
+  @media(max-width:768px){
+    .container{ padding:14px; }
+    .form-container{ padding:18px; }
+    table thead{ display:none; }
+    table, tbody, tr, td{ display:block; width:100%; }
+    tr{ margin-bottom:14px; }
+    td{ padding:10px; border:none; border-bottom:1px solid var(--stroke); }
+    td::before{
+      content: attr(data-label);
+      display:block; font-weight:600; color:var(--primary); margin-bottom:4px;
+    }
+  }
+</style>
+
 </head>
 <body>
+  <header class="topbar" role="banner">
+      <div class="container">
+        <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"
+             alt="Brasão da SEDUC PI"
+             style="height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4);">
+        <h1>Portal Escola</h1>
+      </div>
+    </header>
   <main class="form-container">
     <h2>Cadastro do Aluno</h2>
     <form id="cadastroForm" action="php/register_student.php" method="POST">
