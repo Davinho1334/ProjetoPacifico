@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Portal de Intermediação - Escola</title>
 
-  <!-- Favicon (Brasão SEDUC) — MIME correto para SVG -->
+  <!-- Favicon (Brasão SEDUC) — SVG correto -->
   <link rel="icon" type="image/svg+xml" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
 
   <link rel="stylesheet" href="css/style.css" />
@@ -23,6 +23,10 @@
       --stroke-strong:rgba(255,255,255,.22);
       --ring:rgba(123,212,255,.55);
       --ring-strong:rgba(123,212,255,.9);
+
+      /* Variáveis preenchidas via JS para igualar cards ao HERO */
+      --heroW:auto;
+      --heroH:auto;
     }
 
     html,body{
@@ -103,7 +107,7 @@
     .btn:hover{ background:#7bd4ff !important; color:#0b0f14 !important; box-shadow:0 0 12px rgba(123,212,255,.6); transform:translateY(-1px); }
     .btn:active{ transform:translateY(0); }
 
-    /* ====== Cards de vitrine ====== */
+    /* ====== GRID padrão (mantido) ====== */
     .dashboard-cards{ display:grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap:18px; }
     .card-tilt{
       transition: transform .18s, box-shadow .18s, border-color .25s;
@@ -113,26 +117,53 @@
     }
     .card-tilt:hover{ transform: translateY(-4px) scale(1.01); box-shadow:0 18px 44px rgba(0,0,0,.35); border-color:var(--stroke-strong); }
 
-    /* ====== Sidebar ======
-       FIX: torna fixa e sobrepõe o conteúdo quando expandir, sem empurrar layout */
+    /* ====== NOVO: Cards empilhados com MESMO estilo do HERO, em preto ====== */
+    .cards-stack{
+      width: var(--heroW, auto);
+      display:flex; flex-direction:column;
+      gap:18px;
+      margin-left:auto; margin-right:auto;
+    }
+    .card-animated{
+      position:relative;
+      border-radius:18px;
+      overflow:hidden;
+      background: linear-gradient(135deg, #0b0f14, #101820, #0e0e0e, #1a1a1a);
+      background-size:300% 300%;
+      animation:gradShift 18s ease infinite;
+      box-shadow:0 18px 44px rgba(0,0,0,.45);
+      height: var(--heroH, auto);
+      color:#fff;
+      display:flex; flex-direction:column;
+      cursor:pointer;
+    }
+    .card-pattern{
+      position:absolute; inset:0; opacity:.06; mix-blend:overlay;
+      background-image:
+        radial-gradient(circle at 20px 20px,#fff 1px,transparent 1px),
+        radial-gradient(circle at 60px 60px,#fff 1px,transparent 1px);
+      background-size:80px 80px;
+    }
+    .card-spot{
+      position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(600px 300px at var(--cx,50%) var(--cy,50%),
+        rgba(255,255,255,.12), transparent 45%);
+      mix-blend-mode: screen; opacity:.4; transition:opacity .3s;
+    }
+    .card-body{ position:relative; z-index:1; padding:20px; }
+
+    /* ====== Sidebar (fixa à direita, mantida) ====== */
     @keyframes gradShiftSidebar { 0% { background-position: 0% 50%; } 50%{ background-position: 100% 50%; } 100%{ background-position: 0% 50%; } }
     .sidebar{
-      position:fixed;           /* antes: sticky */
-      right:0; top:0;
-      height:100vh;
-      width:60px;               /* colapsada */
-      z-index:1000;
-      color:#fff;
-      display:flex; flex-direction:column; align-items:center; gap:10px;
-      padding:20px 10px;
-      border-left:1px solid rgba(255,255,255,.12);
+      position:fixed; right:0; top:0; height:100vh; width:60px; z-index:1000;
+      color:#fff; display:flex; flex-direction:column; align-items:center; gap:10px;
+      padding:20px 10px; border-left:1px solid rgba(255,255,255,.12);
       box-shadow: inset 0 0 12px rgba(255,255,255,.08);
-      overflow:hidden;
-      transition:width .35s cubic-bezier(.22,.61,.36,1);
+      overflow:hidden; transition:width .35s cubic-bezier(.22,.61,.36,1);
       -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
       isolation:isolate;
     }
-    .sidebar:hover{ width:200px; } /* expandida */
+    .sidebar:hover{ width:200px; }
     .sidebar::before{
       content:""; position:absolute; inset:0; z-index:-2; opacity:.9;
       background: linear-gradient(135deg, var(--primary), var(--primary-light), #6aa8ff, #7bd4ff);
@@ -167,14 +198,15 @@
       .card-tilt, .sidebar, .sidebar *{ transition:none!important; animation:none!important; }
     }
 
-    /* Mobile: permite tocar para abrir links mesmo sem hover */
+    /* Mobile básicos */
     @media (max-width: 768px){
       .sidebar{ width:64px; }
+      body{ padding-right:64px; }
     }
   </style>
 </head>
 
-<!-- body com padding-right = largura colapsada da sidebar (não empurra layout) -->
+<!-- body com padding-right = largura colapsada da sidebar -->
 <body style="display:flex; padding-right:60px;">
 
   <!-- CONTEÚDO PRINCIPAL (coluna) -->
@@ -214,18 +246,21 @@
         <aside class="kpi-glass" aria-label="Indicadores rápidos" style="flex:1 1 320px; min-width:260px;">
           <div class="kpi-grid">
             <div class="kpi-card" title="Em andamento">
+              <!-- gráfico de barras -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <path d="M4 20V10M9 20V4M14 20v-6M19 20v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
               <span>Em andamento</span>
             </div>
             <div class="kpi-card" title="Aguardando">
+              <!-- ampulheta -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <path d="M6 2h12M6 22h12M6 2v6l6 5 6-5V2M6 22v-6l6-5 6 5v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               <span>Aguardando</span>
             </div>
             <div class="kpi-card" title="Encerrados">
+              <!-- selo check -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
                 <path d="M8.5 12.5l2.2 2.2 4.8-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -233,6 +268,7 @@
               <span>Encerrados</span>
             </div>
             <div class="kpi-card" title="Metas">
+              <!-- alvo -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
                 <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
@@ -248,30 +284,25 @@
       </div>
     </section>
 
-    <!-- Vitrine -->
+    <!-- CARDS (EMPILHADOS, estilo HERO em preto, e cada card = largura/altura do HERO) -->
     <section class="container" aria-label="Atalhos" style="margin-top:14px;">
       <h3 style="margin:0 0 12px 4px; letter-spacing:.02em; color:var(--text)">Acesse rapidamente</h3>
-      <div class="dashboard-cards">
-        <article class="card card-tilt" onclick="location.href='aluno.html'" style="padding:0; overflow:hidden; cursor:pointer;">
-          <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#0b0f14 0 6px,#0f141b 6px 12px);
-            display:flex;align-items:center;justify-content:center;">
-            <img alt="Gestão de Alunos" src="https://dummyimage.com/640x360/0b0f14/ffffff&text=Gest%C3%A3o+Alunos"
-                 style="max-width:86%;height:auto;filter:drop-shadow(0 10px 20px rgba(0,0,0,.35));">
-          </div>
-          <div style="padding:14px 16px;">
+
+      <div id="cardsStack" class="cards-stack">
+        <article class="card-animated" onclick="location.href='aluno.html'">
+          <div class="card-pattern" aria-hidden="true"></div>
+          <div class="card-spot" aria-hidden="true"></div>
+          <div class="card-body">
             <h4 style="margin:4px 0 6px 0;">Gestão de Alunos</h4>
             <p class="small" style="margin:0 0 10px 0; color:var(--text-muted)">Cadastros, buscas e atualizações.</p>
             <a class="btn btn-outline btn-small" href="aluno.html">Abrir</a>
           </div>
         </article>
 
-        <article class="card card-tilt" onclick="location.href='aluno_login.html'" style="padding:0; overflow:hidden; cursor:pointer;">
-          <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#0b0f14 0 6px,#0f141b 6px 12px);
-            display:flex;align-items:center;justify-content:center;">
-            <img alt="Login do Aluno" src="https://dummyimage.com/640x360/0b0f14/ffffff&text=Login+Aluno"
-                 style="max-width:86%;height:auto;filter:drop-shadow(0 10px 20px rgba(0,0,0,.35));">
-          </div>
-          <div style="padding:14px 16px;">
+        <article class="card-animated" onclick="location.href='aluno_login.html'">
+          <div class="card-pattern" aria-hidden="true"></div>
+          <div class="card-spot" aria-hidden="true"></div>
+          <div class="card-body">
             <h4 style="margin:4px 0 6px 0;">Login do Aluno</h4>
             <p class="small" style="margin:0 0 10px 0; color:var(--text-muted)">Consulte informações, contratos e histórico.</p>
             <a class="btn btn-outline btn-small" href="aluno_login.html">Entrar</a>
@@ -280,15 +311,15 @@
       </div>
     </section>
 
-    <!-- Rodapé ÚNICO (na coluna principal) -->
+    <!-- Rodapé ÚNICO -->
     <footer class="container" style="margin-top:auto;padding:20px 0;opacity:.8;font-size:.88rem;text-align:center;">
       © 2025 
-      <a href="https://www.instagram.com/orium25/" target="_blank">Team Orium</a>
+      <a href="https://instagram.com/teamorium" target="_blank">Team Orium</a>
       — Todos os direitos reservados
     </footer>
   </div>
 
-  <!-- Sidebar fixa à direita (sobrepõe ao expandir) -->
+  <!-- Sidebar fixa à direita (mantida) -->
   <aside class="sidebar" aria-label="Admin">
     <div class="icon" aria-hidden="true">
       <!-- Engrenagem -->
@@ -352,7 +383,7 @@
       });
     })();
 
-    // Tilt leve nos cards
+    // Tilt leve (mantido para quem usar .card-tilt em outros lugares)
     (function(){
       const cards = document.querySelectorAll('.card-tilt');
       const max = 6;
@@ -372,6 +403,48 @@
         card.addEventListener('mouseleave', ()=>{ if(raf) cancelAnimationFrame(raf); reset(); });
         card.addEventListener('blur', reset);
       });
+    })();
+
+    // Spotlight nos CARDS pretos (mesmo do HERO)
+    (function(){
+      const cards = document.querySelectorAll('.card-animated');
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      cards.forEach(card=>{
+        const spot = card.querySelector('.card-spot');
+        function move(e){
+          if(reduce) return;
+          const rect = card.getBoundingClientRect();
+          const cx = ((e.clientX - rect.left) / rect.width) * 100;
+          const cy = ((e.clientY - rect.top)  / rect.height) * 100;
+          spot.style.setProperty('--cx', cx + '%');
+          spot.style.setProperty('--cy', cy + '%');
+        }
+        card.addEventListener('mousemove', move);
+        card.addEventListener('mouseleave', ()=>{
+          spot.style.setProperty('--cx','50%');
+          spot.style.setProperty('--cy','50%');
+        });
+      });
+    })();
+
+    // === Copia largura e altura do HERO para os CARDS (cada card = HERO) ===
+    (function(){
+      const hero  = document.getElementById('hero');
+      if(!hero) return;
+
+      const setVars = () => {
+        const rect = hero.getBoundingClientRect();
+        document.documentElement.style.setProperty('--heroW', rect.width + 'px');
+        document.documentElement.style.setProperty('--heroH', rect.height + 'px');
+      };
+
+      if ('ResizeObserver' in window){
+        const ro = new ResizeObserver(setVars);
+        ro.observe(hero);
+      }
+      window.addEventListener('load', setVars);
+      window.addEventListener('resize', setVars);
+      setVars();
     })();
   </script>
 </body>
