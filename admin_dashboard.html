@@ -5,12 +5,106 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboard - Administrador</title>
   <link rel="stylesheet" href="css/style.css" />
-   <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <style>
+    /* ========= TEMA GLASS/BLUE (mesmo do empresa.html) ========= */
+    :root{
+      --bg-1:#0b0f14;
+      --bg-2:#0e1520;
+      --text:#e8f1ff;
+      --text-muted:#a9b8d1;
+      --primary:#7bd4ff;
+      --primary-2:#6aa8ff;
+      --stroke:rgba(255,255,255,.12);
+      --stroke-strong:rgba(255,255,255,.2);
+    }
+    html, body{
+      background:
+        radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+        radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      color:var(--text);
+      font-family: Arial, sans-serif;
+      min-height:100%;
+    }
+    header.topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:1rem; padding:12px 16px; background:transparent;
+      position:sticky; top:0; z-index:5;
+      backdrop-filter:saturate(120%) blur(6px);
+      border-bottom:1px solid var(--stroke);
+    }
+    .topbar-left{display:flex; align-items:center; gap:.75rem}
+    .topbar-left img{height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4)}
+    .topbar-left h1{color:#fff !important; margin:0; font-weight:700; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.5)}
+    .topbar .actions{display:flex; gap:.5rem; flex-wrap:wrap}
+
+    .wrap{
+      width:min(1200px, 95vw);
+      margin: 24px auto;
+    }
+    .glass{
+      background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border:1px solid var(--stroke); border-radius:18px; box-shadow:0 18px 44px rgba(0,0,0,.35);
+    }
+    .panel{ padding: 18px; }
+
+    .dashboard-cards{
+      display:grid; gap:12px;
+      grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+      margin-bottom: 16px;
+    }
+    .card{
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      color:var(--text);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .filters{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;
+      margin: 8px 0 16px 0;
+    }
+    .filters label{display:flex; flex-direction:column; gap:6px; font-weight:600}
+    .filters select, .filters input{
+      height:40px; padding:0 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      color:var(--text);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .btn{
+      border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(135deg, var(--primary), var(--primary-2));
+      color:#0b0f14; padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+      transition: transform .12s ease, box-shadow .25s ease;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 0 0 6px rgba(123,212,255,.18); }
+    .btn.btn-outline{ background:transparent; color:var(--primary); border-color:var(--primary); }
+    .btn.btn-outline:hover{ background: rgba(123,212,255,.12); color:#ecf8ff; }
+
+    table.table{
+      width:100%; border-collapse:separate; border-spacing:0; overflow:hidden;
+      border:1px solid var(--stroke); border-radius:14px; background:rgba(255,255,255,.03);
+    }
+    .table thead th{
+      text-align:left; padding:12px; font-size:13px; color:#dce9ff; background:rgba(255,255,255,.05);
+      border-bottom:1px solid var(--stroke-strong);
+    }
+    .table tbody td{ padding:12px; border-top:1px solid var(--stroke); color:var(--text) }
+    .table tbody tr:hover{ background:rgba(255,255,255,.04) }
+    a.aluno-link{ color:var(--primary); text-decoration:none; font-weight:700 }
+    a.aluno-link:hover{ text-decoration:underline }
+  </style>
 </head>
 <body>
   <header class="topbar">
-    <h1>Painel Administrativo</h1>
-    <div>
+    <div class="topbar-left">
+      <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
+      <h1 aria-label="Painel Administrativo">Painel Administrativo</h1>
+    </div>
+    <div class="actions">
       <button id="logoutBtn" class="btn btn-outline">Logout</button>
       <a href="aluno_dashboard.html" class="btn btn-outline">Ver Dashboard do Aluno</a>
       <a href="empresa.html" class="btn btn-outline">Ver Cadastro de Empresas</a>
@@ -18,194 +112,187 @@
     </div>
   </header>
 
-  <main class="container">
-    <section class="dashboard-cards" id="dashboardCards">
-      <!-- cards gerados automaticamente -->
-    </section>
+  <main class="wrap">
+    <section class="glass panel">
+      <div class="dashboard-cards" id="dashboardCards"></div>
 
-    <div class="actions" style="margin-bottom:1rem;">
-      <button class="btn" onclick="window.open('php/export_pdf.php')">Gerar PDF Geral</button>
-      <button class="btn" onclick="window.open('php/export_excel.php')">Exportar Excel Geral</button>
-    </div>
-
-    <section class="controls">
-      <div class="filters">
-        <label>Filtro de status:
-          <select id="statusFilter">
-            <option value="">Todos</option>
-            <option>Em andamento</option>
-            <option>Encerrado</option>
-            <option>Ativo</option>
-            <option>Disponível</option>
-          </select>
-        </label>
-
-        <label id="Pesquisar">Pesquisar (nome, CPF ou R.A.)<br>
-          <input id="searchInput" placeholder="Ex: João ou 12345678900 ou RA123" />
-        </label>
-        <button id="clearBtn" class="btn btn-outline">Limpar</button>
+      <div class="actions" style="margin: 4px 0 12px 0;">
+        <button class="btn" onclick="window.open('php/export_pdf.php')">Gerar PDF Geral</button>
+        <button class="btn" onclick="window.open('php/export_excel.php')">Exportar Excel Geral</button>
       </div>
-    </section>
 
-    <section>
-      <table class="table" id="studentsTable">
-        <thead>
-          <tr>
-            <th>RA</th><th>Nome</th><th>CPF</th><th>Curso</th><th>Turno</th><th>Série</th><th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- preenchido dinamicamente -->
-        </tbody>
-      </table>
+      <section class="controls">
+        <div class="filters">
+          <label>Filtro de status:
+            <select id="statusFilter">
+              <option value="">Todos</option>
+              <option>Em andamento</option>
+              <option>Encerrado</option>
+              <option>Ativo</option>
+              <option>Disponível</option>
+            </select>
+          </label>
+
+          <label>Pesquisar (nome, CPF ou R.A.)
+            <input id="searchInput" placeholder="Ex: João · 12345678900 · RA123" />
+          </label>
+
+          <button id="clearBtn" class="btn btn-outline">Limpar</button>
+        </div>
+      </section>
+
+      <section>
+        <table class="table" id="studentsTable">
+          <thead>
+            <tr>
+              <th>RA</th><th>Nome</th><th>CPF</th><th>Curso</th><th>Turno</th><th>Série</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody><!-- preenchido dinamicamente --></tbody>
+        </table>
+      </section>
     </section>
   </main>
 
-<script>
-  const studentsTableBody = document.querySelector('#studentsTable tbody');
-  const statusFilter = document.getElementById('statusFilter');
-  const searchInput = document.getElementById('searchInput');
-  const dashboardCards = document.getElementById('dashboardCards');
-  const logoutBtn = document.getElementById('logoutBtn');
-  const clearBtn = document.getElementById('clearBtn');
+  <script>
+    const studentsTableBody = document.querySelector('#studentsTable tbody');
+    const statusFilter = document.getElementById('statusFilter');
+    const searchInput = document.getElementById('searchInput');
+    const dashboardCards = document.getElementById('dashboardCards');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const clearBtn = document.getElementById('clearBtn');
 
-  let allStudents = [];
+    let allStudents = [];
 
-  // Busca alunos e verifica sessão
-  async function fetchStudents() {
-    try {
-      const res = await fetch('php/get_students.php', {
-        credentials: 'same-origin',
-        headers: { 'Accept': 'application/json' }
-      });
+    // Busca alunos e verifica sessão
+    async function fetchStudents() {
+      try {
+        const res = await fetch('php/get_students.php', {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        });
 
-      // Se a sessão expirou, o auth_admin.php deve retornar 401 + JSON
-      if (res.status === 401) {
-        alert('Você precisa estar logado como administrador.');
-        location.href = 'admin_login.html';
-        return;
-      }
-
-      // Garante que tratamos respostas não-JSON com uma mensagem útil
-      const raw = await res.text();
-      let json;
-      try { json = JSON.parse(raw); }
-      catch {
-        studentsTableBody.innerHTML = '<tr><td colspan="7">Resposta inesperada do servidor</td></tr>';
-        console.warn('Resposta do servidor:', raw);
-        return;
-      }
-
-      if (json.success) {
-        allStudents = json.data;
-        renderStudents(allStudents);
-        renderDashboard(allStudents);
-      } else {
-        if ((json.message || '').toLowerCase().includes('não autorizado')) {
+        if (res.status === 401) {
           alert('Você precisa estar logado como administrador.');
           location.href = 'admin_login.html';
           return;
         }
-        studentsTableBody.innerHTML = '<tr><td colspan="7">Erro ao buscar alunos</td></tr>';
+
+        const raw = await res.text();
+        let json;
+        try { json = JSON.parse(raw); }
+        catch {
+          studentsTableBody.innerHTML = '<tr><td colspan="7">Resposta inesperada do servidor</td></tr>';
+          console.warn('Resposta do servidor:', raw);
+          return;
+        }
+
+        if (json.success) {
+          allStudents = json.data;
+          renderStudents(allStudents);
+          renderDashboard(allStudents);
+        } else {
+          if ((json.message || '').toLowerCase().includes('não autorizado')) {
+            alert('Você precisa estar logado como administrador.');
+            location.href = 'admin_login.html';
+            return;
+          }
+          studentsTableBody.innerHTML = '<tr><td colspan="7">Erro ao buscar alunos</td></tr>';
+        }
+      } catch (e) {
+        studentsTableBody.innerHTML = '<tr><td colspan="7">Erro de rede</td></tr>';
+        console.error(e);
       }
-    } catch (e) {
-      studentsTableBody.innerHTML = '<tr><td colspan="7">Erro de rede</td></tr>';
-      console.error(e);
     }
-  }
 
-  function renderStudents(list) {
-    const rows = list.map(s => `
-      <tr>
-        <td>${s.ra ?? ''}</td>
-        <td><a href="#" class="aluno-link" data-id="${s.id}">${s.nome}</a></td>
-        <td>${s.cpf}</td>
-        <td>${s.curso}</td>
-        <td>${s.turno}</td>
-        <td>${s.serie}</td>
-        <td>${s.status}</td>
-      </tr>
-    `).join('');
-    studentsTableBody.innerHTML = rows || '<tr><td colspan="7">Nenhum aluno cadastrado</td></tr>';
+    function renderStudents(list) {
+      const rows = list.map(s => `
+        <tr>
+          <td>${s.ra ?? ''}</td>
+          <td><a href="#" class="aluno-link" data-id="${s.id}">${s.nome}</a></td>
+          <td>${s.cpf}</td>
+          <td>${s.curso}</td>
+          <td>${s.turno}</td>
+          <td>${s.serie}</td>
+          <td>${s.status}</td>
+        </tr>
+      `).join('');
+      studentsTableBody.innerHTML = rows || '<tr><td colspan="7">Nenhum aluno cadastrado</td></tr>';
 
-    document.querySelectorAll('.aluno-link').forEach(a => {
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        const id = a.dataset.id;
-        location.href = `aluno_dashboard.html?id=${id}`;
+      document.querySelectorAll('.aluno-link').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          const id = a.dataset.id;
+          location.href = `aluno_dashboard.html?id=${id}`;
+        });
       });
-    });
-  }
-
-  function renderDashboard(list) {
-    const total = list.length;
-    const porStatus = {};
-    ['Em andamento', 'Encerrado', 'Disponível'].forEach(s => {
-      porStatus[s] = list.filter(x => x.status === s).length;
-    });
-    dashboardCards.innerHTML = `
-      <div class="card">Total de alunos: <strong>${total}</strong></div>
-      <div class="card">Em andamento: <strong>${porStatus['Em andamento']}</strong></div>
-      <div class="card">Encerrados: <strong>${porStatus['Encerrado']}</strong></div>
-      <div class="card">Ativos: <strong>${porStatus['Ativo']}</strong></div>
-      <div class="card">Disponíveis: <strong>${porStatus['Disponível']}</strong></div>
-    `;
-  }
-
-  function applyFilters() {
-    const status = statusFilter.value;
-    const q = (searchInput.value || '').trim().toLowerCase();
-    let filtered = allStudents.slice();
-    if (status) filtered = filtered.filter(s => s.status === status);
-    if (q) {
-      filtered = filtered.filter(s =>
-        (s.nome || '').toLowerCase().includes(q) ||
-        (s.cpf || '').toLowerCase().includes(q) ||
-        (s.ra || '').toLowerCase().includes(q)
-      );
     }
-    renderStudents(filtered);
-  }
 
-  statusFilter.addEventListener('change', applyFilters);
-  searchInput.addEventListener('input', applyFilters);
-  clearBtn.addEventListener('click', () => {
-    statusFilter.value = '';
-    searchInput.value = '';
-    applyFilters();
-  });
-
-  // Logout ajustado
-  logoutBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('php/logout.php', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Cache-Control': 'no-store' }
+    function renderDashboard(list) {
+      const total = list.length;
+      const porStatus = {};
+      ['Em andamento', 'Encerrado', 'Disponível'].forEach(s => {
+        porStatus[s] = list.filter(x => x.status === s).length;
       });
-      // não precisamos do JSON aqui; vamos redirecionar de qualquer forma
-      await res.text().catch(() => null);
-    } catch (err) {
-      console.warn('Falha ao chamar logout.php', err);
-    } finally {
-      sessionStorage.clear();
-      localStorage.clear();
-      location.replace('index.html');
+      // mantém os cards originais, mas com UI nova
+      dashboardCards.innerHTML = `
+        <div class="card">Total de alunos: <strong>${total}</strong></div>
+        <div class="card">Em andamento: <strong>${porStatus['Em andamento']}</strong></div>
+        <div class="card">Encerrados: <strong>${porStatus['Encerrado']}</strong></div>
+        <div class="card">Ativos: <strong>${porStatus['Ativo'] ?? 0}</strong></div>
+        <div class="card">Disponíveis: <strong>${porStatus['Disponível']}</strong></div>
+      `;
     }
-  });
 
-  // Evita que o browser mostre cache ao voltar
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) location.reload();
-  });
+    function applyFilters() {
+      const status = statusFilter.value;
+      const q = (searchInput.value || '').trim().toLowerCase();
+      let filtered = allStudents.slice();
+      if (status) filtered = filtered.filter(s => s.status === status);
+      if (q) {
+        filtered = filtered.filter(s =>
+          (s.nome || '').toLowerCase().includes(q) ||
+          (s.cpf || '').toLowerCase().includes(q) ||
+          (s.ra || '').toLowerCase().includes(q)
+        );
+      }
+      renderStudents(filtered);
+    }
 
-  // Carregamento inicial
-  document.addEventListener('DOMContentLoaded', () => {
-    fetchStudents();
-  });
-</script>
+    statusFilter.addEventListener('change', applyFilters);
+    searchInput.addEventListener('input', applyFilters);
+    clearBtn.addEventListener('click', () => {
+      statusFilter.value = '';
+      searchInput.value = '';
+      applyFilters();
+    });
 
+    // Logout
+    logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch('php/logout.php', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Cache-Control': 'no-store' }
+        });
+        await res.text().catch(() => null);
+      } catch (err) {
+        console.warn('Falha ao chamar logout.php', err);
+      } finally {
+        sessionStorage.clear();
+        localStorage.clear();
+        location.replace('index.html');
+      }
+    });
 
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) location.reload();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchStudents();
+    });
+  </script>
 </body>
 </html>
