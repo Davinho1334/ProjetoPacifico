@@ -2,44 +2,55 @@
 // php/export_pdf.php
 declare(strict_types=1);
 
+// Produção: não exibir avisos em tela do usuário
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+
 @require_once __DIR__ . '/auth_admin.php';
 require_once __DIR__ . '/db.php';
 
-/* ---------- helpers ---------- */
+/* =======================================================================
+   Compat com qualquer conexão vinda do db.php
+   ======================================================================= */
+$mysqli = $mysqli ?? (isset($conn) && $conn instanceof mysqli ? $conn : null);
+$isPDO    = isset($pdo) && $pdo instanceof PDO;
+$isMySQLi = $mysqli instanceof mysqli;
+
 function abort_with(string $msg, int $code = 500) {
   http_response_code($code);
   echo "<meta charset='utf-8'><pre style='font-family:ui-monospace,monospace'>{$msg}</pre>";
   exit;
 }
 function safe($s): string { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
+function vv($v): string { return ($v !== null && $v !== '') ? safe($v) : '-'; }
 function br_date(?string $iso): string {
   if (!$iso) return '-';
   $iso = trim($iso);
   if (preg_match('/^\d{4}-\d{2}-\d{2}/',$iso)) { $ts=strtotime($iso); return $ts?date('d/m/Y',$ts):$iso; }
   if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/',$iso)) return $iso;
-  return $iso;
+  $ts=strtotime($iso); return $ts?date('d/m/Y',$ts):$iso;
 }
-function vv($v): string { return ($v!==null && $v!=='') ? safe($v) : '-'; }
 function yn($v): string {
   if ($v === null || $v === '') return '-';
-  $s = mb_strtolower(trim((string)$v), 'UTF-8');
-  if ($s==='1'||$s==='true'||$s==='sim'||$s==='s') return 'Sim';
-  if ($s==='0'||$s==='false'||$s==='nao'||$s==='não'||$s==='n') return 'Não';
-  if (is_numeric($s)) return ((int)$s)!==0? 'Sim':'Não';
+  $s = function_exists('mb_strtolower') ? mb_strtolower(trim((string)$v),'UTF-8') : strtolower(trim((string)$v));
+  if (in_array($s, ['1','true','sim','s'], true))  return 'Sim';
+  if (in_array($s, ['0','false','nao','não','n'], true)) return 'Não';
+  if (is_numeric($s)) return ((int)$s)!==0 ? 'Sim' : 'Não';
   return ucfirst($s);
 }
 
-/* ---------- entrada ---------- */
+/* =======================================================================
+   Entrada
+   ======================================================================= */
 $id  = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 $cpf = isset($_GET['cpf']) ? trim((string)$_GET['cpf']) : null;
 if (!$id && !$cpf) abort_with("Parâmetro ausente. Use ?id=123 ou ?cpf=000.000.000-00", 400);
 
-/* ---------- conexão ---------- */
-$isPDO    = isset($pdo) && $pdo instanceof PDO;
-$isMySQLi = isset($mysqli) && $mysqli instanceof mysqli;
 if (!$isPDO && !$isMySQLi) abort_with("Nenhuma conexão disponível. Verifique se db.php define \$pdo ou \$mysqli.");
 
-/* ---------- descobrir nome do banco ---------- */
+/* =======================================================================
+   Descobrir nome do DB (para information_schema)
+   ======================================================================= */
 try {
   if ($isPDO) {
     $dbName = (string)$pdo->query("SELECT DATABASE()")->fetchColumn();
@@ -49,21 +60,22 @@ try {
   }
 } catch (Throwable $e) { $dbName = ''; }
 
-/* ---------- util: checar existência de coluna ---------- */
+/* =======================================================================
+   Util: checar coluna existente
+   ======================================================================= */
 function findExistingColumn($isPDO, $pdo, $mysqli, string $db, string $table, array $candidates): ?string {
   if (!$db) return null;
   $in = implode("','", array_map(fn($c)=>str_replace("'", "''", $c), $candidates));
   $sql = "SELECT COLUMN_NAME FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME IN ('{$in}')
-          ORDER BY FIELD(COLUMN_NAME, '{$in}')
-          LIMIT 1";
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME IN ('{$in}')
+          ORDER BY FIELD(COLUMN_NAME, '{$in}') LIMIT 1";
   try {
     if ($isPDO) {
       $st = $pdo->prepare($sql);
       $st->execute([$db, $table]);
       $col = $st->fetchColumn();
       return $col ? (string)$col : null;
-    } else {
+    } elseif ($mysqli instanceof mysqli) {
       $st = $mysqli->prepare($sql);
       $st->bind_param("ss", $db, $table);
       $st->execute();
@@ -72,39 +84,33 @@ function findExistingColumn($isPDO, $pdo, $mysqli, string $db, string $table, ar
       $st->close();
       return $row[0] ?? null;
     }
-  } catch (Throwable $e) { return null; }
+  } catch (Throwable $e) {
+    // ignora, volta null
+  }
+  return null;
 }
 
-/* ---------- descobrir colunas de endereço em `empresas` (dinâmico) ---------- */
+/* =======================================================================
+   Colunas de endereço da empresa (dinâmico, sem quebrar)
+   ======================================================================= */
 $empCols = [];
-$empCols['logradouro'] = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['logradouro','rua','endereco']);
-$empCols['numero']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['numero','nro','num']);
-$empCols['bairro']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['bairro']);
-$empCols['cidade']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['cidade','municipio','município']);
-$empCols['uf']         = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['uf','estado','sigla_uf']);
-$empCols['cep']        = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['cep']);
+$empCols['logradouro'] = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['logradouro','rua','endereco']);
+$empCols['numero']     = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['numero','nro','num']);
+$empCols['bairro']     = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['bairro']);
+$empCols['cidade']     = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['cidade','municipio','município']);
+$empCols['uf']         = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['uf','estado','sigla_uf']);
+$empCols['cep']        = findExistingColumn($isPDO, $pdo ?? null, $mysqli, $dbName, 'empresas', ['cep']);
 
-/* ---------- montar SELECT dinâmico p/ endereço ---------- */
 $empSelectParts = [];
 foreach (['logradouro','numero','bairro','cidade','uf','cep'] as $alias) {
   $col = $empCols[$alias] ?? null;
-  if ($col) {
-    $empSelectParts[] = "e.`{$col}` AS empresa_{$alias}";
-  } else {
-    $empSelectParts[] = "NULL AS empresa_{$alias}";
-  }
+  $empSelectParts[] = $col ? "e.`{$col}` AS empresa_{$alias}" : "NULL AS empresa_{$alias}";
 }
 $empSelectExtra = implode(",\n  ", $empSelectParts);
 
-/* ---------- SELECT principal (ajustado ao seu esquema) ---------- */
-/*
-  - alunos.empresa_id (FK) → empresas.id
-  - fallback para alunos.empresa (texto) caso não haja empresa vinculada
-  - datas: inicio_trabalho / fim_trabalho
-  - contato: contato_aluno
-  - nascimento: data_nascimento
-  - sim/não: recebeu_bolsa, recebe_salario, renovou_contrato
-*/
+/* =======================================================================
+   SELECT principal (ajustado ao seu esquema)
+   ======================================================================= */
 $sql = "
 SELECT
   a.id,
@@ -121,7 +127,6 @@ SELECT
   a.fim_trabalho,
   a.tipo_contrato,
   a.recebeu_bolsa,
-  a.recebe_salario,
   a.renovou_contrato,
   a.relatorio,
   a.observacao,
@@ -135,28 +140,32 @@ WHERE " . ($id ? "a.id = ?" : "a.cpf = ?") . "
 LIMIT 1
 ";
 
-/* ---------- executar ---------- */
+/* =======================================================================
+   Executar
+   ======================================================================= */
 $row = null;
 try {
   if ($isPDO) {
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id ?: $cpf]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $st = $pdo->prepare($sql);
+    $st->execute([$id ?: $cpf]);
+    $row = $st->fetch(PDO::FETCH_ASSOC) ?: null;
   } else {
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) abort_with("Falha ao preparar a consulta (MySQLi): " . $mysqli->error);
-    if ($id) { $stmt->bind_param("i", $id); } else { $stmt->bind_param("s", $cpf); }
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
-    $stmt->close();
+    $st = $mysqli->prepare($sql);
+    if (!$st) abort_with("Falha ao preparar consulta (MySQLi): " . $mysqli->error);
+    if ($id) { $st->bind_param("i", $id); } else { $st->bind_param("s", $cpf); }
+    $st->execute();
+    $rs = $st->get_result();
+    $row = $rs ? $rs->fetch_assoc() : null;
+    $st->close();
   }
 } catch (Throwable $e) {
   abort_with("Erro ao consultar o aluno: " . $e->getMessage());
 }
-if (!$row) abort_with("Aluno não encontrado para " . ($id ? "id={$id}" : "cpf=" . safe($cpf)), 404);
+if (!$row) abort_with("Aluno não encontrado.", 404);
 
-/* ---------- preparar variáveis ---------- */
+/* =======================================================================
+   Variáveis para o template
+   ======================================================================= */
 $genDate      = date('d/m/Y H:i');
 
 $alunoId      = (string)($row['id'] ?? '');
@@ -173,7 +182,6 @@ $status       = vv($row['status'] ?? '');
 $tipoContrato = vv($row['tipo_contrato'] ?? '');
 
 $recebeuBolsa = yn($row['recebeu_bolsa'] ?? null);
-$recebeSalario= yn($row['recebe_salario'] ?? null);
 $renovou      = yn($row['renovou_contrato'] ?? null);
 
 $empresaNome  = vv($row['empresa_nome'] ?? '');
@@ -193,16 +201,16 @@ $fim          = vv(br_date($row['fim_trabalho'] ?? null));
 $relatorio    = ($row['relatorio'] ?? '') !== '' ? nl2br(safe($row['relatorio'])) : '-';
 $observacao   = ($row['observacao'] ?? '') !== '' ? nl2br(safe($row['observacao'])) : '-';
 
-$arquivoSaida = 'Aluno_' . preg_replace('/[^A-Za-z0-9_\-]+/','_', trim(html_entity_decode($nome))) . '.pdf';
-
-/* ---------- montar endereço em 1–2 linhas ---------- */
-$linha1Parts = array_filter([$empLog, $empNum !== '-' ? $empNum : null], fn($v)=>$v && $v!=='-');
-$linha2Parts = array_filter([$empBai, $empCid, $empUF, $empCEP], fn($v)=>$v && $v!=='-');
-
+$linha1Parts  = array_filter([$empLog !== '-' ? $empLog : null, $empNum !== '-' ? $empNum : null]);
+$linha2Parts  = array_filter([$empBai !== '-' ? $empBai : null, $empCid !== '-' ? $empCid : null, $empUF !== '-' ? $empUF : null, $empCEP !== '-' ? $empCEP : null]);
 $empEndereco1 = $linha1Parts ? implode(', ', $linha1Parts) : '-';
 $empEndereco2 = $linha2Parts ? implode(' • ', $linha2Parts) : '-';
 
-/* ---------- HTML ---------- */
+$arquivoSaida = 'Aluno_' . preg_replace('/[^A-Za-z0-9_\-]+/','_', trim(html_entity_decode($nome))) . '.pdf';
+
+/* =======================================================================
+   HTML
+   ======================================================================= */
 $html = <<<HTML
 <!doctype html>
 <html lang="pt-BR">
@@ -224,15 +232,13 @@ $html = <<<HTML
     .footer { margin-top: 24px; font-size: 10px; color:#666; text-align:right; }
     table.meta { width:100%; border-collapse:collapse; }
     table.meta td { padding:6px 0; vertical-align:top; }
-    .w100 { width:100%; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
   <div class="header">
     <div>
       <h1>Ficha do Aluno</h1>
-      <div class="muted">Gerado em: <span class="mono">{$genDate}</span></div>
+      <div class="muted">Gerado em: <span>{$genDate}</span></div>
     </div>
     <div>
       <span class="badge">{$status}</span>
@@ -241,7 +247,7 @@ $html = <<<HTML
 
   <div class="card">
     <table class="meta">
-      <tr><td class="label">Nome</td><td class="value w100">{$nome}</td></tr>
+      <tr><td class="label">Nome</td><td class="value">{$nome}</td></tr>
       <tr><td class="label">CPF</td><td class="value">{$cpfOut}</td></tr>
       <tr><td class="label">RA</td><td class="value">{$ra}</td></tr>
       <tr><td class="label">Contato</td><td class="value">{$contato}</td></tr>
@@ -263,12 +269,8 @@ $html = <<<HTML
       <div class="value">{$tipoContrato}</div>
       <div class="label" style="margin-top:8px;">Recebeu Bolsa</div>
       <div class="value">{$recebeuBolsa}</div>
-      <div class="label" style="margin-top:8px;">Recebe Salário</div>
-      <div class="value">{$recebeSalario}</div>
       <div class="label" style="margin-top:8px;">Renovou Contrato</div>
       <div class="value">{$renovou}</div>
-      <div class="label" style="margin-top:8px;">Valor/Info da Bolsa</div>
-      <div class="value">{$bolsaValor}</div>
     </div>
   </div>
 
@@ -278,7 +280,7 @@ $html = <<<HTML
       <div class="label">Nome</div>
       <div class="value">{$empresaNome}</div>
       <div class="label" style="margin-top:8px;">CNPJ</div>
-      <div class="value mono">{$empresaCnpj}</div>
+      <div class="value">{$empresaCnpj}</div>
       <div class="label" style="margin-top:8px;">Telefone</div>
       <div class="value">{$empresaTel}</div>
       <div class="label" style="margin-top:8px;">Endereço</div>
@@ -303,15 +305,18 @@ $html = <<<HTML
   </div>
 
   <div class="footer">
-    ID interno: <span class="mono">{$alunoId}</span>
+    ID interno: <span>{$alunoId}</span>
   </div>
 </body>
 </html>
 HTML;
 
-/* ---------- PDF (Dompdf) ---------- */
+/* =======================================================================
+   PDF com Dompdf (se instalado) — senão, HTML pronto para imprimir
+   ======================================================================= */
 $haveDompdf = class_exists(\Dompdf\Dompdf::class);
 if (!$haveDompdf) {
+  // tenta carregar o autoload do Composer (../vendor para a pasta php/)
   $autoload = dirname(__DIR__) . '/vendor/autoload.php';
   if (is_file($autoload)) {
     require_once $autoload;
@@ -334,14 +339,13 @@ if ($haveDompdf) {
     $dompdf->stream($nomeArquivo, ['Attachment' => true]);
     exit;
   } catch (Throwable $e) {
-    abort_with("Falha ao gerar PDF (Dompdf): " . $e->getMessage());
+    // se der qualquer falha, cai no fallback HTML
   }
 }
 
-abort_with(
-  "Biblioteca Dompdf não encontrada.\n\n".
-  "Instale com Composer na raiz do projeto:\n".
-  "  composer require dompdf/dompdf\n\n".
-  "Depois tente novamente este export."
-);
+/* --------- Fallback: entregar o HTML e abrir a caixa de impressão --------- */
+if (ob_get_length()) { ob_end_clean(); }
+header('Content-Type: text/html; charset=UTF-8');
+echo $html . "<script>try{window.print();}catch(e){}</script>";
+exit;
 ?>
