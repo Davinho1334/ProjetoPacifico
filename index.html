@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Portal de Intermediação - Escola</title>
 
-  <!-- Favicon (Brasão SEDUC) — SVG correto -->
+  <!-- Favicon (Brasão SEDUC) -->
   <link rel="icon" type="image/svg+xml" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
 
   <link rel="stylesheet" href="css/style.css" />
@@ -24,7 +24,7 @@
       --ring:rgba(123,212,255,.55);
       --ring-strong:rgba(123,212,255,.9);
 
-      /* Variáveis preenchidas via JS para igualar cards ao HERO */
+      /* preenchidas via JS para igualar cards ao HERO */
       --heroW:auto;
       --heroH:auto;
     }
@@ -107,7 +107,7 @@
     .btn:hover{ background:#7bd4ff !important; color:#0b0f14 !important; box-shadow:0 0 12px rgba(123,212,255,.6); transform:translateY(-1px); }
     .btn:active{ transform:translateY(0); }
 
-    /* ====== GRID padrão (mantido) ====== */
+    /* ====== GRID padrão adicional (mantido p/ outras páginas) ====== */
     .dashboard-cards{ display:grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap:18px; }
     .card-tilt{
       transition: transform .18s, box-shadow .18s, border-color .25s;
@@ -117,7 +117,7 @@
     }
     .card-tilt:hover{ transform: translateY(-4px) scale(1.01); box-shadow:0 18px 44px rgba(0,0,0,.35); border-color:var(--stroke-strong); }
 
-    /* ====== NOVO: Cards empilhados com MESMO estilo do HERO, em preto ====== */
+    /* ====== Cards empilhados estilo HERO (versão preta) ====== */
     .cards-stack{
       width: var(--heroW, auto);
       display:flex; flex-direction:column;
@@ -132,7 +132,7 @@
       background-size:300% 300%;
       animation:gradShift 18s ease infinite;
       box-shadow:0 18px 44px rgba(0,0,0,.45);
-      height: var(--heroH, auto);
+      height: var(--heroH, auto);           /* desktop: cada card = hero */
       color:#fff;
       display:flex; flex-direction:column;
       cursor:pointer;
@@ -152,7 +152,7 @@
     }
     .card-body{ position:relative; z-index:1; padding:20px; }
 
-    /* ====== Sidebar (fixa à direita, mantida) ====== */
+    /* ====== Sidebar (desktop) ====== */
     @keyframes gradShiftSidebar { 0% { background-position: 0% 50%; } 50%{ background-position: 100% 50%; } 100%{ background-position: 0% 50%; } }
     .sidebar{
       position:fixed; right:0; top:0; height:100vh; width:60px; z-index:1000;
@@ -198,15 +198,80 @@
       .card-tilt, .sidebar, .sidebar *{ transition:none!important; animation:none!important; }
     }
 
-    /* Mobile básicos */
+    /* ====== Menu Rápido MOBILE (hidden no desktop) ====== */
+    /* Esconde por padrão no desktop */
+    .qm-toggle, .quickmenu, .qm-backdrop { display:none; }
+
+    /* ========== MODO MOBILE (≤ 768px) ========== */
     @media (max-width: 768px){
-      .sidebar{ width:64px; }
-      body{ padding-right:64px; }
+      /* Sidebar some no mobile */
+      .sidebar{ display:none !important; }
+      body{ padding-right:0 !important; }
+
+      /* Botão flutuante (só mobile) */
+      .qm-toggle{
+        position:fixed; right:14px; bottom:16px; z-index:1100;
+        display:inline-flex; align-items:center; justify-content:center;
+        width:48px; height:48px; border-radius:999px;
+        border:1px solid rgba(255,255,255,.28);
+        background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+        color:#fff; box-shadow:0 8px 22px rgba(0,0,0,.35);
+      }
+      .qm-toggle svg{ width:24px; height:24px; }
+
+      /* Painel do menu rápido (só mobile) */
+      .quickmenu{
+        position:fixed; right:14px; bottom:74px; z-index:1100;
+        width:220px; border-radius:14px;
+        border:1px solid rgba(255,255,255,.2);
+        background:linear-gradient(180deg, rgba(18,24,34,.96), rgba(10,14,22,.94));
+        box-shadow:0 12px 28px rgba(0,0,0,.45);
+        padding:10px;
+        display:none; /* aparece apenas quando .is-qm-open no <html> */
+      }
+      html.is-qm-open .quickmenu{ display:block; }
+      html.is-qm-open body{ overflow:hidden; }
+
+      .quickmenu h5{
+        margin:6px 6px 10px; font-size:.95rem; color:#eaf3ff; opacity:.92;
+      }
+      .quickmenu .menu-list{ display:flex; flex-direction:column; gap:8px; }
+      .quickmenu .menu-list a{
+        display:block; width:100%;
+        padding:10px 12px; border-radius:10px; text-align:center;
+        border:1px solid rgba(255,255,255,.22);
+        background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+        color:#eaf3ff; text-decoration:none;
+      }
+      .quickmenu .menu-list a:focus-visible{
+        outline:2px solid var(--ring-strong); outline-offset:2px;
+      }
+
+      /* Backdrop (só mobile) */
+      .qm-backdrop{
+        position:fixed; inset:0; background:rgba(0,0,0,.35);
+        z-index:1095; display:none;
+      }
+      html.is-qm-open .qm-backdrop{ display:block; }
+
+      /* Cards ocupam toda a largura disponível do container */
+      .cards-stack{ width: 100%; gap:12px; }
+
+      /* Cada card tem metade da altura do HERO (soma = HERO) */
+      .card-animated{
+        height: calc(var(--heroH, 480px) / 2);
+        min-height: 220px;
+        box-shadow:0 12px 28px rgba(0,0,0,.38);
+      }
+
+      /* Texto mais compacto */
+      .topbar .container{ padding:10px 14px; }
+      .kpi-grid{ grid-template-columns: repeat(2,1fr); gap:10px; }
     }
   </style>
 </head>
 
-<!-- body com padding-right = largura colapsada da sidebar -->
+<!-- body com padding-right = largura colapsada da sidebar (somente desktop) -->
 <body style="display:flex; padding-right:60px;">
 
   <!-- CONTEÚDO PRINCIPAL (coluna) -->
@@ -284,7 +349,7 @@
       </div>
     </section>
 
-    <!-- CARDS (EMPILHADOS, estilo HERO em preto, e cada card = largura/altura do HERO) -->
+    <!-- CARDS (EMPILHADOS, estilo HERO em preto) -->
     <section class="container" aria-label="Atalhos" style="margin-top:14px;">
       <h3 style="margin:0 0 12px 4px; letter-spacing:.02em; color:var(--text)">Acesse rapidamente</h3>
 
@@ -311,7 +376,7 @@
       </div>
     </section>
 
-    <!-- Rodapé ÚNICO -->
+    <!-- Rodapé -->
     <footer class="container" style="margin-top:auto;padding:20px 0;opacity:.8;font-size:.88rem;text-align:center;">
       © 2025 
       <a href="https://instagram.com/teamorium" target="_blank">Team Orium</a>
@@ -319,7 +384,7 @@
     </footer>
   </div>
 
-  <!-- Sidebar fixa à direita (mantida) -->
+  <!-- Sidebar (desktop apenas) -->
   <aside class="sidebar" aria-label="Admin">
     <div class="icon" aria-hidden="true">
       <!-- Engrenagem -->
@@ -345,9 +410,28 @@
     </div>
   </aside>
 
+  <!-- ===== Menu rápido MOBILE (hidden no desktop via CSS) ===== -->
+  <button id="qmToggle" class="qm-toggle" aria-label="Menu rápido" aria-haspopup="true" aria-expanded="false" aria-controls="quickmenu" title="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path d="M3 6h18M3 12h18M3 18h18" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <div class="qm-backdrop" data-qm-dismiss aria-hidden="true"></div>
+
+  <div id="quickmenu" class="quickmenu" role="menu" aria-label="Menu rápido">
+    <h5>Menu</h5>
+    <div class="menu-list">
+      <!-- Único item solicitado -->
+      <a role="menuitem" href="admin_login.html">Entrar</a>
+    </div>
+  </div>
+  <!-- ============================= -->
+
   <script>
-    // Spotlight no HERO (segue mouse)
+    // Spotlight no HERO (segue mouse apenas se houver mouse)
     (function(){
+      if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
       const hero = document.getElementById('hero');
       const spot = hero.querySelector('.hero-spot');
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -363,8 +447,9 @@
       hero.addEventListener('mouseleave', ()=>{ spot.style.setProperty('--mx','50%'); spot.style.setProperty('--my','50%'); });
     })();
 
-    // Spotlight da LATERAL (mesmo efeito do hero)
+    // Spotlight da LATERAL (desktop apenas)
     (function(){
+      if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) return;
       const sb = document.querySelector('.sidebar');
       if(!sb) return;
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -383,8 +468,9 @@
       });
     })();
 
-    // Tilt leve (mantido para quem usar .card-tilt em outros lugares)
+    // Tilt leve (mantido) — ignora touch
     (function(){
+      if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
       const cards = document.querySelectorAll('.card-tilt');
       const max = 6;
       cards.forEach(card=>{
@@ -405,8 +491,9 @@
       });
     })();
 
-    // Spotlight nos CARDS pretos (mesmo do HERO)
+    // Spotlight nos CARDS pretos (ignora touch)
     (function(){
+      if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
       const cards = document.querySelectorAll('.card-animated');
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       cards.forEach(card=>{
@@ -427,7 +514,7 @@
       });
     })();
 
-    // === Copia largura e altura do HERO para os CARDS (cada card = HERO) ===
+    // === Copia largura e altura do HERO para os CARDS ===
     (function(){
       const hero  = document.getElementById('hero');
       if(!hero) return;
@@ -445,6 +532,41 @@
       window.addEventListener('load', setVars);
       window.addEventListener('resize', setVars);
       setVars();
+    })();
+
+    // ===== MENU RÁPIDO (MOBILE) =====
+    (function(){
+      const html = document.documentElement;
+      const btn  = document.getElementById('qmToggle');
+      const menu = document.getElementById('quickmenu');
+      const backdrop = document.querySelector('.qm-backdrop');
+
+      if(!btn) return;
+
+      function isMobile(){ return window.matchMedia('(max-width: 768px)').matches; }
+      function isOpen(){ return html.classList.contains('is-qm-open'); }
+      function open(){
+        if(!isMobile()) return;
+        html.classList.add('is-qm-open');
+        btn.setAttribute('aria-expanded','true');
+        const first = menu.querySelector('a,button,[tabindex]:not([tabindex="-1"])');
+        first && first.focus({preventScroll:true});
+      }
+      function close(){
+        html.classList.remove('is-qm-open');
+        btn.setAttribute('aria-expanded','false');
+      }
+      function toggle(){ isOpen() ? close() : open(); }
+
+      // Abre/fecha somente no mobile; no desktop o botão está oculto por CSS
+      btn.addEventListener('click', toggle);
+      backdrop.addEventListener('click', close);
+      window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && isOpen()) close(); });
+      menu.addEventListener('click', (e)=>{
+        const t = e.target.closest('a,button');
+        if(!t) return;
+        close();
+      });
     })();
   </script>
 </body>
