@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Portal de Intermediação - Escola</title>
 
-  <!-- Favicon (Brasão SEDUC) -->
-  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <!-- Favicon (Brasão SEDUC) — MIME correto para SVG -->
+  <link rel="icon" type="image/svg+xml" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
 
   <link rel="stylesheet" href="css/style.css" />
   <meta name="color-scheme" content="dark light">
@@ -35,7 +35,7 @@
       scroll-behavior:smooth;
     }
 
-    /* ====== Header / Topbar (cor antiga escura sólida) ====== */
+    /* ====== Header / Topbar ====== */
     .topbar{
       position:relative; z-index:3;
       background:#111a25;
@@ -70,7 +70,7 @@
       mix-blend-mode: screen; opacity:.55; transition:opacity .3s;
     }
 
-    /* ====== KPI box do HERO (ícones novos + quadrados uniformes) ====== */
+    /* ====== KPI box do HERO ====== */
     .kpi-glass{
       background:rgba(255,255,255,.10);
       border:1px solid rgba(255,255,255,.28);
@@ -113,18 +113,26 @@
     }
     .card-tilt:hover{ transform: translateY(-4px) scale(1.01); box-shadow:0 18px 44px rgba(0,0,0,.35); border-color:var(--stroke-strong); }
 
-    /* ====== Sidebar com o MESMO efeito do hero ====== */
+    /* ====== Sidebar ======
+       FIX: torna fixa e sobrepõe o conteúdo quando expandir, sem empurrar layout */
     @keyframes gradShiftSidebar { 0% { background-position: 0% 50%; } 50%{ background-position: 100% 50%; } 100%{ background-position: 0% 50%; } }
     .sidebar{
-      width:60px; color:#fff; position:sticky; top:0; height:100vh;
+      position:fixed;           /* antes: sticky */
+      right:0; top:0;
+      height:100vh;
+      width:60px;               /* colapsada */
+      z-index:1000;
+      color:#fff;
       display:flex; flex-direction:column; align-items:center; gap:10px;
-      padding:20px 10px; border-left:1px solid rgba(255,255,255,.12);
+      padding:20px 10px;
+      border-left:1px solid rgba(255,255,255,.12);
       box-shadow: inset 0 0 12px rgba(255,255,255,.08);
-      overflow:hidden; transition:width .35s cubic-bezier(.22,.61,.36,1);
+      overflow:hidden;
+      transition:width .35s cubic-bezier(.22,.61,.36,1);
       -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
       isolation:isolate;
     }
-    .sidebar:hover{ width:200px; }
+    .sidebar:hover{ width:200px; } /* expandida */
     .sidebar::before{
       content:""; position:absolute; inset:0; z-index:-2; opacity:.9;
       background: linear-gradient(135deg, var(--primary), var(--primary-light), #6aa8ff, #7bd4ff);
@@ -158,11 +166,18 @@
       .hero-animated, .sidebar::before{ animation:none; }
       .card-tilt, .sidebar, .sidebar *{ transition:none!important; animation:none!important; }
     }
+
+    /* Mobile: permite tocar para abrir links mesmo sem hover */
+    @media (max-width: 768px){
+      .sidebar{ width:64px; }
+    }
   </style>
 </head>
-<body style="display:flex;">
 
-  <!-- CONTEÚDO PRINCIPAL -->
+<!-- body com padding-right = largura colapsada da sidebar (não empurra layout) -->
+<body style="display:flex; padding-right:60px;">
+
+  <!-- CONTEÚDO PRINCIPAL (coluna) -->
   <div style="flex:1; display:flex; flex-direction:column;">
 
     <!-- TOPO COM BRASÃO -->
@@ -199,21 +214,18 @@
         <aside class="kpi-glass" aria-label="Indicadores rápidos" style="flex:1 1 320px; min-width:260px;">
           <div class="kpi-grid">
             <div class="kpi-card" title="Em andamento">
-              <!-- gráfico de barras -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <path d="M4 20V10M9 20V4M14 20v-6M19 20v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
               <span>Em andamento</span>
             </div>
             <div class="kpi-card" title="Aguardando">
-              <!-- ampulheta -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <path d="M6 2h12M6 22h12M6 2v6l6 5 6-5V2M6 22v-6l6-5 6 5v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               <span>Aguardando</span>
             </div>
             <div class="kpi-card" title="Encerrados">
-              <!-- selo check -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
                 <path d="M8.5 12.5l2.2 2.2 4.8-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -221,7 +233,6 @@
               <span>Encerrados</span>
             </div>
             <div class="kpi-card" title="Metas">
-              <!-- alvo -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
                 <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
@@ -269,13 +280,15 @@
       </div>
     </section>
 
-    <!-- Rodapé -->
-    <footer class="centered" style="padding-top:18px; padding-bottom:38px;">
-      <p class="small">Sistema de cadastro e administração — XAMPP + MySQL</p>
+    <!-- Rodapé ÚNICO (na coluna principal) -->
+    <footer class="container" style="margin-top:auto;padding:20px 0;opacity:.8;font-size:.88rem;text-align:center;">
+      © 2025 
+      <a href="https://www.instagram.com/orium25/" target="_blank">Team Orium</a>
+      — Todos os direitos reservados
     </footer>
   </div>
 
-  <!-- Sidebar (efeito do hero aplicado) -->
+  <!-- Sidebar fixa à direita (sobrepõe ao expandir) -->
   <aside class="sidebar" aria-label="Admin">
     <div class="icon" aria-hidden="true">
       <!-- Engrenagem -->
