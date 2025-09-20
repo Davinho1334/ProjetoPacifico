@@ -2,58 +2,140 @@
 // php/export_pdf.php
 declare(strict_types=1);
 
-// (opcional) proteger a rota se existir esse arquivo
 @require_once __DIR__ . '/auth_admin.php';
-
-// conexão (exige que db.php defina $pdo OU $mysqli)
 require_once __DIR__ . '/db.php';
 
-/* ----------------- helpers ----------------- */
+/* ---------- helpers ---------- */
 function abort_with(string $msg, int $code = 500) {
   http_response_code($code);
   echo "<meta charset='utf-8'><pre style='font-family:ui-monospace,monospace'>{$msg}</pre>";
   exit;
 }
+function safe($s): string { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function br_date(?string $iso): string {
   if (!$iso) return '-';
   $iso = trim($iso);
-  if (preg_match('/^\d{4}-\d{2}-\d{2}/', $iso)) {
-    $ts = strtotime($iso);
-    return $ts ? date('d/m/Y', $ts) : $iso;
-  }
-  if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $iso)) return $iso;
+  if (preg_match('/^\d{4}-\d{2}-\d{2}/',$iso)) { $ts=strtotime($iso); return $ts?date('d/m/Y',$ts):$iso; }
+  if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/',$iso)) return $iso;
   return $iso;
 }
-function safe($s): string {
-  return htmlspecialchars((string)($s ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
-function vv($v): string {
-  return ($v !== null && $v !== '') ? safe($v) : '-';
+function vv($v): string { return ($v!==null && $v!=='') ? safe($v) : '-'; }
+function yn($v): string {
+  if ($v === null || $v === '') return '-';
+  $s = mb_strtolower(trim((string)$v), 'UTF-8');
+  if ($s==='1'||$s==='true'||$s==='sim'||$s==='s') return 'Sim';
+  if ($s==='0'||$s==='false'||$s==='nao'||$s==='não'||$s==='n') return 'Não';
+  if (is_numeric($s)) return ((int)$s)!==0? 'Sim':'Não';
+  return ucfirst($s);
 }
 
-/* ----------------- entrada ----------------- */
+/* ---------- entrada ---------- */
 $id  = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 $cpf = isset($_GET['cpf']) ? trim((string)$_GET['cpf']) : null;
+if (!$id && !$cpf) abort_with("Parâmetro ausente. Use ?id=123 ou ?cpf=000.000.000-00", 400);
 
-if (!$id && !$cpf) abort_with("Parâmetro ausente. Informe ?id=123 ou ?cpf=000.000.000-00", 400);
-
-/* ----------------- conexões ----------------- */
+/* ---------- conexão ---------- */
 $isPDO    = isset($pdo) && $pdo instanceof PDO;
 $isMySQLi = isset($mysqli) && $mysqli instanceof mysqli;
 if (!$isPDO && !$isMySQLi) abort_with("Nenhuma conexão disponível. Verifique se db.php define \$pdo ou \$mysqli.");
 
-/* ----------------- query ----------------- */
+/* ---------- descobrir nome do banco ---------- */
+try {
+  if ($isPDO) {
+    $dbName = (string)$pdo->query("SELECT DATABASE()")->fetchColumn();
+  } else {
+    $res = $mysqli->query("SELECT DATABASE()");
+    $dbName = $res ? (string)($res->fetch_row()[0] ?? '') : '';
+  }
+} catch (Throwable $e) { $dbName = ''; }
+
+/* ---------- util: checar existência de coluna ---------- */
+function findExistingColumn($isPDO, $pdo, $mysqli, string $db, string $table, array $candidates): ?string {
+  if (!$db) return null;
+  $in = implode("','", array_map(fn($c)=>str_replace("'", "''", $c), $candidates));
+  $sql = "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME IN ('{$in}')
+          ORDER BY FIELD(COLUMN_NAME, '{$in}')
+          LIMIT 1";
+  try {
+    if ($isPDO) {
+      $st = $pdo->prepare($sql);
+      $st->execute([$db, $table]);
+      $col = $st->fetchColumn();
+      return $col ? (string)$col : null;
+    } else {
+      $st = $mysqli->prepare($sql);
+      $st->bind_param("ss", $db, $table);
+      $st->execute();
+      $rs = $st->get_result();
+      $row = $rs ? $rs->fetch_row() : null;
+      $st->close();
+      return $row[0] ?? null;
+    }
+  } catch (Throwable $e) { return null; }
+}
+
+/* ---------- descobrir colunas de endereço em `empresas` (dinâmico) ---------- */
+$empCols = [];
+$empCols['logradouro'] = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['logradouro','rua','endereco']);
+$empCols['numero']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['numero','nro','num']);
+$empCols['bairro']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['bairro']);
+$empCols['cidade']     = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['cidade','municipio','município']);
+$empCols['uf']         = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['uf','estado','sigla_uf']);
+$empCols['cep']        = findExistingColumn($isPDO, $pdo, $mysqli, $dbName, 'empresas', ['cep']);
+
+/* ---------- montar SELECT dinâmico p/ endereço ---------- */
+$empSelectParts = [];
+foreach (['logradouro','numero','bairro','cidade','uf','cep'] as $alias) {
+  $col = $empCols[$alias] ?? null;
+  if ($col) {
+    $empSelectParts[] = "e.`{$col}` AS empresa_{$alias}";
+  } else {
+    $empSelectParts[] = "NULL AS empresa_{$alias}";
+  }
+}
+$empSelectExtra = implode(",\n  ", $empSelectParts);
+
+/* ---------- SELECT principal (ajustado ao seu esquema) ---------- */
+/*
+  - alunos.empresa_id (FK) → empresas.id
+  - fallback para alunos.empresa (texto) caso não haja empresa vinculada
+  - datas: inicio_trabalho / fim_trabalho
+  - contato: contato_aluno
+  - nascimento: data_nascimento
+  - sim/não: recebeu_bolsa, recebe_salario, renovou_contrato
+*/
 $sql = "
 SELECT
-  a.id, a.nome, a.cpf, a.ra, a.contato_aluno, a.data_nascimento,
-  a.inicio_trabalho, a.fim_trabalho, a.status, a.empresa,
-  a.relatorio, a.serie, a.curso, a.turno, a.tipo_contrato,
-  a.recebeu_bolsa, a.observacao
+  a.id,
+  a.nome,
+  a.cpf,
+  a.ra,
+  a.data_nascimento,
+  a.curso,
+  a.turno,
+  a.serie,
+  a.status,
+  a.contato_aluno,
+  a.inicio_trabalho,
+  a.fim_trabalho,
+  a.tipo_contrato,
+  a.recebeu_bolsa,
+  a.recebe_salario,
+  a.renovou_contrato,
+  a.relatorio,
+  a.observacao,
+  COALESCE(e.nome, e.razao_social, a.empresa) AS empresa_nome,
+  e.cnpj        AS empresa_cnpj,
+  e.telefone    AS empresa_telefone,
+  {$empSelectExtra}
 FROM alunos a
+LEFT JOIN empresas e ON e.id = a.empresa_id
 WHERE " . ($id ? "a.id = ?" : "a.cpf = ?") . "
 LIMIT 1
 ";
 
+/* ---------- executar ---------- */
 $row = null;
 try {
   if ($isPDO) {
@@ -72,35 +154,55 @@ try {
 } catch (Throwable $e) {
   abort_with("Erro ao consultar o aluno: " . $e->getMessage());
 }
-
 if (!$row) abort_with("Aluno não encontrado para " . ($id ? "id={$id}" : "cpf=" . safe($cpf)), 404);
 
-/* ----------------- prepara variáveis p/ o HTML ----------------- */
+/* ---------- preparar variáveis ---------- */
 $genDate      = date('d/m/Y H:i');
 
-$alunoId      = (string)$row['id'];
-$nome         = vv($row['nome']);
-$cpfOut       = vv($row['cpf']);
-$ra           = vv($row['ra']);
-$contato      = vv($row['contato_aluno'] ?? $row['contato']);
-$anoNasc      = vv($row['data_nascimento']);
-$curso        = vv($row['curso']);
-$serie        = vv($row['serie']);
-$turno        = vv($row['turno']);
-$tipoContrato = vv($row['tipo_contrato']);
-$bolsa        = vv($row['recebeu_bolsa']);
-$empresa      = vv($row['empresa']);
-$status       = vv($row['status']);
+$alunoId      = (string)($row['id'] ?? '');
+$nome         = vv($row['nome'] ?? '');
+$cpfOut       = vv($row['cpf'] ?? '');
+$ra           = vv($row['ra'] ?? '');
+$contato      = vv($row['contato_aluno'] ?? '');
+$nascimento   = vv(br_date($row['data_nascimento'] ?? null));
 
-$inicio       = safe(br_date($row['inicio_trabalho'] ?? null));
-$fim          = safe(br_date($row['fim_trabalho'] ?? null));
+$curso        = vv($row['curso'] ?? '');
+$serie        = vv($row['serie'] ?? '');
+$turno        = vv($row['turno'] ?? '');
+$status       = vv($row['status'] ?? '');
+$tipoContrato = vv($row['tipo_contrato'] ?? '');
+
+$recebeuBolsa = yn($row['recebeu_bolsa'] ?? null);
+$recebeSalario= yn($row['recebe_salario'] ?? null);
+$renovou      = yn($row['renovou_contrato'] ?? null);
+
+$empresaNome  = vv($row['empresa_nome'] ?? '');
+$empresaCnpj  = vv($row['empresa_cnpj'] ?? '');
+$empresaTel   = vv($row['empresa_telefone'] ?? '');
+
+$empLog  = vv($row['empresa_logradouro'] ?? null);
+$empNum  = vv($row['empresa_numero'] ?? null);
+$empBai  = vv($row['empresa_bairro'] ?? null);
+$empCid  = vv($row['empresa_cidade'] ?? null);
+$empUF   = vv($row['empresa_uf'] ?? null);
+$empCEP  = vv($row['empresa_cep'] ?? null);
+
+$inicio       = vv(br_date($row['inicio_trabalho'] ?? null));
+$fim          = vv(br_date($row['fim_trabalho'] ?? null));
 
 $relatorio    = ($row['relatorio'] ?? '') !== '' ? nl2br(safe($row['relatorio'])) : '-';
 $observacao   = ($row['observacao'] ?? '') !== '' ? nl2br(safe($row['observacao'])) : '-';
 
-$arquivoSaida = 'Aluno_' . preg_replace('/\s+/', '_', trim(html_entity_decode($nome))) . '.pdf';
+$arquivoSaida = 'Aluno_' . preg_replace('/[^A-Za-z0-9_\-]+/','_', trim(html_entity_decode($nome))) . '.pdf';
 
-/* ----------------- HTML ----------------- */
+/* ---------- montar endereço em 1–2 linhas ---------- */
+$linha1Parts = array_filter([$empLog, $empNum !== '-' ? $empNum : null], fn($v)=>$v && $v!=='-');
+$linha2Parts = array_filter([$empBai, $empCid, $empUF, $empCEP], fn($v)=>$v && $v!=='-');
+
+$empEndereco1 = $linha1Parts ? implode(', ', $linha1Parts) : '-';
+$empEndereco2 = $linha2Parts ? implode(' • ', $linha2Parts) : '-';
+
+/* ---------- HTML ---------- */
 $html = <<<HTML
 <!doctype html>
 <html lang="pt-BR">
@@ -143,7 +245,7 @@ $html = <<<HTML
       <tr><td class="label">CPF</td><td class="value">{$cpfOut}</td></tr>
       <tr><td class="label">RA</td><td class="value">{$ra}</td></tr>
       <tr><td class="label">Contato</td><td class="value">{$contato}</td></tr>
-      <tr><td class="label">Ano de Nascimento</td><td class="value">{$anoNasc}</td></tr>
+      <tr><td class="label">Nascimento</td><td class="value">{$nascimento}</td></tr>
     </table>
   </div>
 
@@ -159,19 +261,36 @@ $html = <<<HTML
     <div class="card">
       <div class="label">Tipo de Contrato</div>
       <div class="value">{$tipoContrato}</div>
-      <div class="label" style="margin-top:8px;">Bolsa</div>
-      <div class="value">{$bolsa}</div>
+      <div class="label" style="margin-top:8px;">Recebeu Bolsa</div>
+      <div class="value">{$recebeuBolsa}</div>
+      <div class="label" style="margin-top:8px;">Recebe Salário</div>
+      <div class="value">{$recebeSalario}</div>
+      <div class="label" style="margin-top:8px;">Renovou Contrato</div>
+      <div class="value">{$renovou}</div>
+      <div class="label" style="margin-top:8px;">Valor/Info da Bolsa</div>
+      <div class="value">{$bolsaValor}</div>
     </div>
   </div>
 
   <div class="grid">
     <div class="card">
-      <div class="label">Empresa</div>
-      <div class="value">{$empresa}</div>
+      <div class="section-title">Empresa</div>
+      <div class="label">Nome</div>
+      <div class="value">{$empresaNome}</div>
+      <div class="label" style="margin-top:8px;">CNPJ</div>
+      <div class="value mono">{$empresaCnpj}</div>
+      <div class="label" style="margin-top:8px;">Telefone</div>
+      <div class="value">{$empresaTel}</div>
+      <div class="label" style="margin-top:8px;">Endereço</div>
+      <div class="value">{$empEndereco1}</div>
+      <div class="value" style="margin-top:4px;">{$empEndereco2}</div>
     </div>
     <div class="card">
-      <div class="label">Período do Contrato</div>
-      <div class="value">Início: {$inicio} — Término: {$fim}</div>
+      <div class="section-title">Período do Trabalho</div>
+      <div class="label">Início</div>
+      <div class="value">{$inicio}</div>
+      <div class="label" style="margin-top:8px;">Fim</div>
+      <div class="value">{$fim}</div>
     </div>
   </div>
 
@@ -190,7 +309,7 @@ $html = <<<HTML
 </html>
 HTML;
 
-/* ----------------- PDF (Dompdf) ----------------- */
+/* ---------- PDF (Dompdf) ---------- */
 $haveDompdf = class_exists(\Dompdf\Dompdf::class);
 if (!$haveDompdf) {
   $autoload = dirname(__DIR__) . '/vendor/autoload.php';
