@@ -159,13 +159,35 @@
         <input name="cnpj" type="text" required />
       </label>
 
-      <label>Endereço
-        <input name="endereco" type="text" />
-      </label>
+      <!-- Endereço (CEP → auto-preenche rua/bairro/cidade/estado). Número é manual. -->
+      <fieldset style="border:1px solid var(--stroke); padding:12px; border-radius:12px;">
+        <legend style="color:var(--primary); padding:0 6px;">Endereço</legend>
 
-      <label>CEP
-        <input name="cep" type="text" />
-      </label>
+        <label>CEP
+          <input required name="cep" id="cep" type="text" maxlength="9" placeholder="00000-000" />
+        </label>
+
+        <label>Rua
+          <input name="endereco_rua" id="endereco_rua" type="text" placeholder="Ex.: Av. Central" />
+        </label>
+
+        <label>Número
+          <input name="endereco_numero" id="endereco_numero" type="text" placeholder="Ex.: 123" />
+        </label>
+
+        <label>Bairro
+          <input name="endereco_bairro" id="endereco_bairro" type="text" placeholder="Ex.: Centro" />
+        </label>
+
+        <label>Cidade
+          <input name="endereco_cidade" id="endereco_cidade" type="text" placeholder="Ex.: Teresina" />
+        </label>
+
+        <label>Estado (UF)
+          <input name="endereco_estado" id="endereco_estado" type="text" maxlength="2" placeholder="PI" />
+        </label>
+      </fieldset>
+ 
 
       <label>Telefone
         <input name="telefone" type="text" />
