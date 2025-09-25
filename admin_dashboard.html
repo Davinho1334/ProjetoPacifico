@@ -117,7 +117,6 @@
       <div class="dashboard-cards" id="dashboardCards"></div>
 
       <div class="actions" style="margin: 4px 0 12px 0;">
-        <button class="btn" onclick="window.open('php/export_pdf.php')">Gerar PDF Geral</button>
         <button class="btn" onclick="window.open('php/export_excel.php')">Exportar Excel Geral</button>
       </div>
 
@@ -128,7 +127,6 @@
               <option value="">Todos</option>
               <option>Em andamento</option>
               <option>Encerrado</option>
-              <option>Ativo</option>
               <option>Disponível</option>
             </select>
           </label>
@@ -239,7 +237,6 @@
         <div class="card">Total de alunos: <strong>${total}</strong></div>
         <div class="card">Em andamento: <strong>${porStatus['Em andamento']}</strong></div>
         <div class="card">Encerrados: <strong>${porStatus['Encerrado']}</strong></div>
-        <div class="card">Ativos: <strong>${porStatus['Ativo'] ?? 0}</strong></div>
         <div class="card">Disponíveis: <strong>${porStatus['Disponível']}</strong></div>
       `;
     }

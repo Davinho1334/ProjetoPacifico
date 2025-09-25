@@ -1,74 +1,161 @@
 <?php
-// php/generate_declaracao.php
+// php/generate_declaracao.php  (com números por extenso)
 declare(strict_types=1);
-require_once __DIR__.'/auth_admin.php';
-require_once __DIR__.'/db.php';
-require_once __DIR__.'/doc_utils.php';
-require_once __DIR__.'/../vendor/autoload.php';
+error_reporting(E_ALL);
 
+// --- Localiza template ---
+$BASE_DIR = __DIR__ . '/..';
+$cands = [
+  __DIR__ . '/templates/Declaracao_Matricula_TEMPLATE_FINAL.docx',
+  __DIR__ . '/templates/Declaracao_Matricula_TEMPLATE_FINAL_v4.docx',
+  $BASE_DIR . '/templates/Declaracao_Matricula_TEMPLATE_FINAL.docx',
+  $BASE_DIR . '/templates/Declaracao_Matricula_TEMPLATE_FINAL_v4.docx',
+];
+$TEMPLATE = null; foreach ($cands as $c) if (is_file($c)) { $TEMPLATE = $c; break; }
+if(!$TEMPLATE){ header('Content-Type:text/plain; charset=utf-8'); echo "Template não encontrado:\n- ".implode("\n- ",$cands); exit; }
+
+$OUTPUT_DIR = $BASE_DIR.'/documentos/declaracoes/'; if(!is_dir($OUTPUT_DIR)) @mkdir($OUTPUT_DIR,0777,true);
+
+// --- Composer + DB ---
+require_once $BASE_DIR.'/vendor/autoload.php';
 use PhpOffice\PhpWord\TemplateProcessor;
 
-$alunoId = isset($_GET['aluno_id']) ? (int)$_GET['aluno_id'] : 0;
-if ($alunoId <= 0) { die('aluno_id inválido'); }
+// Este arquivo deve definir $pdo (PDO) OU $mysqli/$conn (mysqli)
+require_once $BASE_DIR.'/php/db.php';
 
-$pdo = $pdo ?? null;
-if (!($pdo instanceof PDO)) { die('PDO não disponível'); }
+// --- Helpers ---
+function hhmm_ok($v){ return is_string($v) && preg_match('/^\d{2}:\d{2}$/',$v); }
+function min_between($ini,$fim){
+  if(!hhmm_ok($ini)||!hhmm_ok($fim)) return 0;
+  [$h1,$m1]=array_map('intval',explode(':',$ini));
+  [$h2,$m2]=array_map('intval',explode(':',$fim));
+  return max(0, ($h2*60+$m2)-($h1*60+$m1));
+}
+function hours_int($min){ return (int)round($min/60); }
+function fmtDateBR(?string $iso){ if(!$iso) return '____/____/_____'; $dt=DateTime::createFromFormat('Y-m-d',substr($iso,0,10)); return $dt?$dt->format('d/m/Y'):'____/____/_____'; }
+function data_extenso(DateTime $d){
+  $meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  return $d->format('j').' de '.$meses[(int)$d->format('n')-1].' de '.$d->format('Y');
+}
+// número por extenso PT-BR (0..9999)
+function numero_por_extenso($n){
+  $n = (int)$n;
+  if ($n === 0) return 'zero';
+  $u = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove'];
+  $d = ['','dez','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  $e = ['dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  $c = ['','cem','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+  $parts = [];
+  if ($n >= 1000) {
+    $mil = intdiv($n,1000);
+    $parts[] = ($mil==1?'mil':$u[$mil].' mil');
+    $n %= 1000;
+  }
+  if ($n >= 100) {
+    if ($n == 100) { $parts[] = 'cem'; $n = 0; }
+    else { $parts[] = $c[intdiv($n,100)]; $n %= 100; }
+  }
+  if ($n >= 20) {
+    $dez = intdiv($n,10);
+    $n %= 10;
+    $parts[] = $d[$dez] . ($n? ' e '.$u[$n] : '');
+    $n = 0;
+  } elseif ($n >= 10) {
+    $parts[] = $e[$n-10]; $n = 0;
+  }
+  if ($n > 0) $parts[] = $u[$n];
+  // juntar com ' e ' quando necessário
+  $out = implode(' e ', array_filter($parts));
+  // normalizar espaços
+  $out = preg_replace('/\s+/', ' ', trim($out));
+  return $out;
+}
 
-$aluno = getAluno($pdo, $alunoId);
-if (!$aluno) die('Aluno não encontrado');
+// --- Entrada ---
+$alunoId = 0;
+if (isset($_GET['id'])) $alunoId=(int)$_GET['id'];
+elseif(isset($_GET['aluno_id'])) $alunoId=(int)$_GET['aluno_id'];
+elseif(isset($_POST['id'])) $alunoId=(int)$_POST['id'];
+elseif(isset($_POST['aluno_id'])) $alunoId=(int)$_POST['aluno_id'];
+if($alunoId<=0){ header('Content-Type:text/plain'); exit('Informe ?id= ou ?aluno_id='); }
 
-$agenda = carregarAgenda($pdo, $alunoId);
+// --- Carregar aluno ---
+$aluno=null; $pdo = isset($pdo)&&$pdo instanceof PDO?$pdo:null; $mysqli = isset($mysqli)&&$mysqli instanceof mysqli?$mysqli:(isset($conn)&&$conn instanceof mysqli?$conn:null);
 
-// totais semanais
-$semTeo = somaSemanal($agenda['teorica']);
-$semPra = somaSemanal($agenda['pratica']);
-$cargaSemanal = $semTeo + $semPra;
+if($pdo){
+  $st=$pdo->prepare("SELECT * FROM alunos WHERE id=? LIMIT 1"); $st->execute([$alunoId]); $aluno=$st->fetch(PDO::FETCH_ASSOC);
+}elseif($mysqli){
+  $st=$mysqli->prepare("SELECT * FROM alunos WHERE id=? LIMIT 1"); $st->bind_param('i',$alunoId); $st->execute(); $aluno=$st->get_result()->fetch_assoc();
+}
+if(!$aluno){ header('Content-Type:text/plain'); exit('Aluno não encontrado.'); }
 
-// totais do programa (se você tiver em campos; se não, pode calcular a partir de datas × semanal, mas aqui deixo como opcional)
-$totalTeoria  = (float)($aluno['carga_teorica'] ?? 400); // exemplo padrão do seu modelo
-$totalPratica = (float)($aluno['carga_pratica'] ?? 800);
-$cargaTotal   = $totalTeoria + $totalPratica;
+// --- Agenda semanal ---
+$Tmin=0; $Pmin=0;
+if($pdo){
+  try{
+    $s=$pdo->prepare("SELECT teorica,pratica FROM aluno_agendas WHERE aluno_id=?"); $s->execute([$alunoId]);
+    if($r=$s->fetch(PDO::FETCH_ASSOC)){
+      $teo=json_decode($r['teorica']?:'[]',true) ?: [];
+      $pra=json_decode($r['pratica']?:'[]',true) ?: [];
+      foreach($teo as $row){ $Tmin += min_between($row['ini']??'',$row['fim']??''); }
+      foreach($pra as $row){ $Pmin += min_between($row['ini']??'',$row['fim']??''); }
+    }
+  }catch(Throwable $e){}
+}elseif($mysqli){
+  $q=$mysqli->prepare("SELECT teorica,pratica FROM aluno_agendas WHERE aluno_id=?"); $q->bind_param('i',$alunoId); $q->execute();
+  if($r=$q->get_result()->fetch_assoc()){
+    $teo=json_decode($r['teorica']?:'[]',true) ?: [];
+    $pra=json_decode($r['pratica']?:'[]',true) ?: [];
+    foreach($teo as $row){ $Tmin += min_between($row['ini']??'',$row['fim']??''); }
+    foreach($pra as $row){ $Pmin += min_between($row['ini']??'',$row['fim']??''); }
+  }
+}
+$hor_teo = hours_int($Tmin);
+$hor_pra = hours_int($Pmin);
+$hor_sem = $hor_teo + $hor_pra;
 
-$curso = $aluno['curso'] ?? '';
-$cnap  = $aluno['cnap']  ?? '(CNAP)';
-$cbo   = $aluno['cbo']   ?? '351605';
-$inicio = $aluno['inicio_trabalho'] ?? '';
-$fim    = $aluno['fim_trabalho'] ?? '';
-$matricula = $aluno['cpf'] ?? ($aluno['ra'] ?? '');
+// --- Datas do contrato ---
+$ini = $aluno['inicio_trabalho'] ?? null;
+$fim = $aluno['fim_trabalho'] ?? null;
+if($pdo){
+  try{
+    $c=$pdo->prepare("SELECT * FROM contracts WHERE student_id=? ORDER BY id DESC LIMIT 1");
+    $c->execute([$alunoId]);
+    if($row=$c->fetch(PDO::FETCH_ASSOC)){
+      $ini = $row['inicio'] ?: $ini;
+      $fim = $row['fim']    ?: $fim;
+    }
+  }catch(Throwable $e){}
+}
 
-$templatePath = __DIR__ . '/../templates/declaracao_matricula.docx';
-if (!is_file($templatePath)) die('Modelo não encontrado');
+// --- Preenche template ---
+$tpl = new TemplateProcessor($TEMPLATE);
+$tpl->setValue('ALUNO_NOME', $aluno['nome'] ?? '');
+$tpl->setValue('ALUNO_RA', $aluno['ra'] ?? '');
+$tpl->setValue('CURSO_NOME', $aluno['curso'] ?? '');
+$tpl->setValue('CBO', $aluno['cbo'] ?? '');
+$tpl->setValue('DATA_INICIO', fmtDateBR($ini));
+$tpl->setValue('DATA_TERMINO', fmtDateBR($fim));
+$tpl->setValue('HORAS_TEO_SEMANAIS', (string)$hor_teo);
+$tpl->setValue('HORAS_PRAT_SEMANAIS', (string)$hor_pra);
+$tpl->setValue('HORAS_SEMANAIS_TOTAL', (string)$hor_sem);
 
-$tp = new TemplateProcessor($templatePath);
+// números por extenso (sem a palavra "horas")
+$tpl->setValue('HORAS_TEO_SEMANAIS_EXTENSO', numero_por_extenso($hor_teo));
+$tpl->setValue('HORAS_PRAT_SEMANAIS_EXTENSO', numero_por_extenso($hor_pra));
+$tpl->setValue('HORAS_SEMANAIS_TOTAL_EXTENSO', numero_por_extenso($hor_sem));
 
-// Placeholders recomendados no .docx
-$tp->setValue('ALUNO_NOME', htmlspecialchars($aluno['nome'] ?? ''));
-$tp->setValue('MATRICULA', htmlspecialchars($matricula));
-$tp->setValue('CURSO', htmlspecialchars($curso));
-$tp->setValue('CNAP', htmlspecialchars($cnap));
-$tp->setValue('CBO', htmlspecialchars($cbo));
+// Data de emissão por extenso (hoje)
+$hoje = new DateTime('now');
+$tpl->setValue('DATA_EMISSAO_EXTENSO', data_extenso($hoje));
 
-$tp->setValue('CARGA_TOTAL', (string)$cargaTotal);
-$tp->setValue('CARGA_TEORIA_TOTAL', (string)$totalTeoria);
-$tp->setValue('CARGA_PRATICA_TOTAL', (string)$totalPratica);
-
-$tp->setValue('DATA_INICIO', $inicio);
-$tp->setValue('DATA_FIM', $fim);
-
-$tp->setValue('CARGA_SEMANAL', (string)$cargaSemanal);
-$tp->setValue('CARGA_SEMANAL_TEO', (string)$semTeo);
-$tp->setValue('CARGA_SEMANAL_PRA', (string)$semPra);
-
-// Texto descritivo igual ao seu modelo (ex.: “08 horas teóricas semanais ... 20 horas práticas ...”)
-$tp->setValue('LINHA_TEO', sprintf("%02d (Horas) teóricas semanais, desenvolvidas nessa instituição de ensino;", (int)$semTeo));
-$tp->setValue('LINHA_PRA', sprintf("%02d (Horas) práticas semanais, desenvolvidas na empresa.", (int)$semPra));
-
-$outDir = __DIR__ . '/../tmp';
-@mkdir($outDir, 0775, true);
-$outFile = $outDir . '/DECLARACAO_MATRICULA_' . $alunoId . '.docx';
-$tp->saveAs($outFile);
+// --- Salvar e baixar ---
+$nomeAluno = preg_replace('/\s+/', '_', trim($aluno['nome'] ?? 'aluno'));
+$out = $OUTPUT_DIR . "Declaracao_Matricula_{$nomeAluno}_{$alunoId}.docx";
+$tpl->saveAs($out);
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-header('Content-Disposition: attachment; filename="'.basename($outFile).'"');
-readfile($outFile);
-?>
+header('Content-Disposition: attachment; filename=\"'.basename($out).'\"');
+header('Content-Length: '.filesize($out));
+readfile($out);
+exit;

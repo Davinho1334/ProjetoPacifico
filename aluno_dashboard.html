@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
-    /* ========= TEMA GLASS/BLUE (igual empresa.html) ========= */
+    /* ========= TEMA GLASS/BLUE ========= */
     :root{
       --bg-1:#0b0f14;
       --bg-2:#0e1520;
@@ -155,8 +155,7 @@
         <div class="card" style="flex:1; min-width:280px;">
           <h3>Ações Rápidas</h3>
           <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
-            <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
-            <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
+            <button class="btn btn-outline" id="btnPdf">Gerar Ficha do Aluno PDF</button>
             <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
             <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
             <button class="btn btn-outline" id="btnWhatsApp">WhatsApp</button>
@@ -247,7 +246,7 @@
     </section>
   </main>
 
-  <!-- ======= SCRIPT (mantido da sua versão, com a mesma lógica) ======= -->
+  <!-- ======= SCRIPT ======= -->
   <script>
     // helpers
     const $qs  = (sel)=>document.querySelector(sel);
@@ -419,7 +418,7 @@
       return json.data;
     }
 
-    // ---------- TELEFONE ----------
+    // ---------- telefone ----------
     function extractAnyPhone(raw){
       if (raw == null) return '';
       if (typeof raw === 'string' || typeof raw === 'number') return String(raw);
@@ -501,6 +500,14 @@
             <div class="card"><strong>Fim Trabalho:</strong> ${formatarDataBR(aluno.fim_trabalho)}</div>
             <div class="card"><strong>Renovou Contrato?:</strong> ${aluno.renovou_contrato == 1 ? 'Sim' : 'Não'}</div>
             <div class="card"><strong>Telefone:</strong> ${phoneRaw || '-'}</div>
+
+            <!-- NOVOS CARDS DE ENDEREÇO -->
+            <div class="card"><strong>CEP:</strong> ${aluno.cep || '-'}</div>
+            <div class="card"><strong>Rua:</strong> ${aluno.endereco_rua || '-'}</div>
+            <div class="card"><strong>Número:</strong> ${aluno.endereco_numero || '-'}</div>
+            <div class="card"><strong>Bairro:</strong> ${aluno.endereco_bairro || '-'}</div>
+            <div class="card"><strong>Cidade:</strong> ${aluno.endereco_cidade || '-'}</div>
+            <div class="card"><strong>Estado:</strong> ${aluno.endereco_estado || '-'}</div>
           `;
         }
 
@@ -511,8 +518,7 @@
             <div class="card" style="flex:1; min-width:280px;">
               <h3>Ações Rápidas</h3>
               <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
-                <button class="btn btn-outline" id="btnPdf">Gerar PDF</button>
-                <button class="btn btn-outline" id="btnExcel">Exportar Excel</button>
+                <button class="btn btn-outline" id="btnPdf">Gerar Ficha do Aluno PDF</button>
                 <button class="btn btn-outline" id="btnGerarContrato">Gerar contrato de aprendizagem</button>
                 <button class="btn btn-outline" id="btnGerarDeclaracao">Gerar declaração de matrícula</button>
                 <button class="btn btn-outline" id="btnWhatsApp">WhatsApp</button>
@@ -524,7 +530,10 @@
           `;
           $qs('#btnPdf')?.addEventListener('click', ()=> window.open('php/export_pdf.php?id=' + encodeURIComponent(id), '_blank'));
           $qs('#btnExcel')?.addEventListener('click', ()=> window.open('php/export_excel.php?id=' + encodeURIComponent(id), '_blank'));
-          $qs('#btnGerarContrato')?.addEventListener('click', ()=> window.open('php/generate_contrato.php?aluno_id=' + encodeURIComponent(id), '_blank'));
+          $qs('#btnGerarContrato')?.addEventListener('click', () => {
+          // Prefiro padronizar com ?id=, mas o PHP aceita os dois
+            window.open('php/generate_contrato.php?id=' + encodeURIComponent(id), '_blank');
+      });
           $qs('#btnGerarDeclaracao')?.addEventListener('click', ()=> window.open('php/generate_declaracao.php?aluno_id=' + encodeURIComponent(id), '_blank'));
 
           const btnWhatsApp = $qs('#btnWhatsApp');
@@ -811,6 +820,14 @@
       if (st.recebeu_bolsa == null) $qs('#edit_recebeu_bolsa').value = '';
       else $qs('#edit_recebeu_bolsa').value = Number(st.recebeu_bolsa) ? '1' : '0';
 
+      // ====== NOVO: ENDEREÇO NO MODAL ======
+      $qs('#edit_cep').value              = st.cep || '';
+      $qs('#edit_endereco_rua').value     = st.endereco_rua || '';
+      $qs('#edit_endereco_numero').value  = st.endereco_numero || '';
+      $qs('#edit_endereco_bairro').value  = st.endereco_bairro || '';
+      $qs('#edit_endereco_cidade').value  = st.endereco_cidade || '';
+      $qs('#edit_endereco_estado').value  = st.endereco_estado || '';
+
       const updateBolsaUI = () => {
         const cur = $qs('#edit_curso').value;
         const tip = $qs('#edit_tipo_contrato').value;
@@ -851,7 +868,15 @@
         relatorio: ($qs('#edit_relatorio').value||'').trim(),
         observacao: ($qs('#edit_observacao').value||'').trim(),
         tipo_contrato: tipoSel || '',
-        recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu))
+        recebeu_bolsa: (recebeu === '' ? null : parseInt(recebeu)),
+
+        // ====== NOVO: ENDEREÇO ======
+        cep:               ($qs('#edit_cep').value||'').trim(),
+        endereco_rua:      ($qs('#edit_endereco_rua').value||'').trim(),
+        endereco_numero:   ($qs('#edit_endereco_numero').value||'').trim(),
+        endereco_bairro:   ($qs('#edit_endereco_bairro').value||'').trim(),
+        endereco_cidade:   ($qs('#edit_endereco_cidade').value||'').trim(),
+        endereco_estado:   ($qs('#edit_endereco_estado').value||'').trim().toUpperCase()
       };
 
       try {
@@ -880,6 +905,63 @@
         alert('Erro de rede: ' + err.message);
       }
     }
+
+    // ====== CEP (máscara + ViaCEP) no MODAL ======
+    (function cepModal(){
+      const onlyDigits = s => String(s||'').replace(/\D/g,'');
+      const cepInput = document.getElementById('edit_cep');
+      if (!cepInput) return;
+
+      function maskCEP(v){
+        const d = onlyDigits(v).slice(0,8);
+        return d.length > 5 ? d.slice(0,5)+'-'+d.slice(5) : d;
+      }
+      function applyMask(){
+        const start = cepInput.selectionStart, old = cepInput.value.length;
+        cepInput.value = maskCEP(cepInput.value);
+        const diff = cepInput.value.length - old;
+        const pos = Math.max(0, (start ?? cepInput.value.length) + diff);
+        try{ cepInput.setSelectionRange(pos,pos);}catch(e){}
+      }
+      cepInput.addEventListener('input', applyMask);
+      cepInput.addEventListener('blur', applyMask);
+
+      async function buscarCEP(cep8){
+        try{
+          const resp = await fetch(`https://viacep.com.br/ws/${cep8}/json/`, { cache:'no-store' });
+          const j = await resp.json();
+          if (j && !j.erro){
+            return {
+              rua:     j.logradouro || '',
+              bairro:  j.bairro || '',
+              cidade:  j.localidade || '',
+              estado:  j.uf || ''
+            };
+          }
+        }catch(e){}
+        return null;
+      }
+      async function handleCEPFetch(){
+        const raw = cepInput.value || '';
+        const cep = onlyDigits(raw);
+        if (cep.length !== 8) return;
+        const dados = await buscarCEP(cep);
+        if (!dados) return;
+        const setIfEmpty = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && !el.value) el.value = val;
+        };
+        setIfEmpty('edit_endereco_rua', dados.rua);
+        setIfEmpty('edit_endereco_bairro', dados.bairro);
+        setIfEmpty('edit_endereco_cidade', dados.cidade);
+        setIfEmpty('edit_endereco_estado', dados.estado);
+      }
+      cepInput.addEventListener('change', handleCEPFetch);
+      cepInput.addEventListener('keyup', ()=> {
+        const d = onlyDigits(cepInput.value);
+        if (d.length === 8) handleCEPFetch();
+      });
+    })();
 
     // ---------- init ----------
     (async function init(){
@@ -920,7 +1002,11 @@
                 empresa_id: empId || '', empresa: empName || '',
                 inicio_trabalho: s.inicio_trabalho || '', fim_trabalho: s.fim_trabalho || '',
                 renovou_contrato: s.renovou_contrato ?? '0', tipo_contrato: s.tipo_contrato || '',
-                contato_aluno: extractAnyPhone(s.contato_aluno ?? s.contato ?? s.telefone ?? s.celular ?? s.phone ?? s)
+                contato_aluno: extractAnyPhone(s.contato_aluno ?? s.contato ?? s.telefone ?? s.celular ?? s.phone ?? s),
+
+                // também traz os campos de endereço (para edição inline futura, se precisar)
+                cep: s.cep || '', endereco_rua: s.endereco_rua || '', endereco_numero: s.endereco_numero || '',
+                endereco_bairro: s.endereco_bairro || '', endereco_cidade: s.endereco_cidade || '', endereco_estado: s.endereco_estado || ''
               };
             });
 
@@ -954,7 +1040,7 @@
     })();
   </script>
 
-  <!-- Modal de edição (mantido, reestilizado pelo CSS acima) -->
+  <!-- Modal de edição -->
   <div id="editModal" class="modal" style="display:none;">
     <div class="modal-content">
       <h3>Editar aluno</h3>
@@ -1041,6 +1127,29 @@
           </label>
         </div>
 
+        <!-- ====== NOVO: ENDEREÇO ====== -->
+        <hr style="border:none;border-top:1px solid var(--stroke); margin:.5rem 0;">
+        <h4 style="margin:.2rem 0 .4rem;">Endereço</h4>
+
+        <label>CEP<br>
+          <input id="edit_cep" type="text" maxlength="9" placeholder="00000-000" />
+        </label>
+        <label>Rua<br>
+          <input id="edit_endereco_rua" type="text" />
+        </label>
+        <label>Número<br>
+          <input id="edit_endereco_numero" type="text" />
+        </label>
+        <label>Bairro<br>
+          <input id="edit_endereco_bairro" type="text" />
+        </label>
+        <label>Cidade<br>
+          <input id="edit_endereco_cidade" type="text" />
+        </label>
+        <label>Estado (UF)<br>
+          <input id="edit_endereco_estado" type="text" maxlength="2" />
+        </label>
+
         <div style="margin-top:0.75rem;">
           <button type="button" id="saveEdit" class="btn">Salvar</button>
           <button type="button" id="cancelEdit" class="btn btn-outline">Cancelar</button>
@@ -1048,5 +1157,6 @@
       </form>
     </div>
   </div>
+
 </body>
 </html>

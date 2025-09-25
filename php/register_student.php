@@ -3,167 +3,111 @@
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 
-// Captura qualquer saída do db.php para expor em caso de erro (depuração)
-$__include_output = '';
-ob_start();
-try {
-  require_once __DIR__ . '/db.php';
-} catch (Throwable $e) {
-  $__include_output = ob_get_clean();
-  echo json_encode([
-    'success' => false,
-    'message' => 'Falha ao incluir db.php',
-    'error'   => $e->getMessage(),
-    'include_output' => $__include_output
-  ], JSON_UNESCAPED_UNICODE);
-  exit;
-}
-$__include_output = ob_get_clean();
+require_once __DIR__ . '/db.php';
 
-// Detecta conectores disponíveis
-$pdo    = (isset($pdo)    && $pdo    instanceof PDO)    ? $pdo    : null;
-$mysqli = (isset($mysqli) && $mysqli instanceof mysqli) ? $mysqli : null;
-// Compatibilidade com projetos que usam $conn
-if (!$mysqli && isset($conn) && $conn instanceof mysqli) $mysqli = $conn;
-
-function jexit(array $payload): void {
-  echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-// -------------------- Entrada --------------------
-$nome  = trim($_POST['nome']  ?? '');
-$cpf   = trim($_POST['cpf']   ?? '');
-$ra    = trim($_POST['ra']    ?? '');
-$curso = trim($_POST['curso'] ?? '');
-$turno = trim($_POST['turno'] ?? '');
-$serie = trim($_POST['serie'] ?? '');
-$contato_aluno = trim($_POST['contato_aluno'] ?? ''); // Novo campo
-
-// Data de nascimento (vem como dd/mm/aaaa do formulário)
-$dataNascBr = trim($_POST['data_nascimento'] ?? '');
-$data_nascimento = null;
-if ($dataNascBr !== '') {
-  if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $dataNascBr, $m)) {
-    $dd = (int)$m[1]; $mm = (int)$m[2]; $yy = (int)$m[3];
-    if (checkdate($mm, $dd, $yy)) {
-      $data_nascimento = sprintf('%04d-%02d-%02d', $yy, $mm, $dd); // aaaa-mm-dd
-    } else {
-      jexit([
-        'success' => false,
-        'message' => 'Data de nascimento inválida.',
-        'include_output' => $__include_output
-      ]);
-    }
-  } else {
-    jexit([
-      'success' => false,
-      'message' => 'Formato de data inválido. Use dd/mm/aaaa.',
-      'include_output' => $__include_output
-    ]);
+// ---- helpers ----
+function body_input(): array {
+  $ctype = $_SERVER['CONTENT_TYPE'] ?? '';
+  if (stripos($ctype, 'application/json') !== false) {
+    $raw = file_get_contents('php://input') ?: '';
+    $j = json_decode($raw, true);
+    return is_array($j) ? $j : [];
   }
+  return $_POST ?? [];
+}
+function pick(array $src, array $keys): ?string {
+  foreach ($keys as $k) {
+    if (isset($src[$k]) && trim((string)$src[$k]) !== '') return trim((string)$src[$k]);
+  }
+  return null;
+}
+function only_digits(?string $s): string { return preg_replace('/\D+/', '', (string)$s); }
+function mask_cep(?string $s): ?string {
+  $d = only_digits($s);
+  if ($d === '') return null;
+  if (strlen($d) !== 8) return null;
+  return substr($d,0,5) . '-' . substr($d,5,3);
+}
+function norm_uf(?string $s): ?string {
+  $s = strtoupper(trim((string)$s));
+  return $s ? substr($s,0,2) : null;
 }
 
-// Validações mínimas
-if ($nome === '' || $cpf === '' || $curso === '' || $turno === '' || $serie === '' || $contato_aluno === '') {
-  jexit([
-    'success' => false,
-    'message' => 'Preencha todos os campos obrigatórios.',
-    'include_output' => $__include_output
-  ]);
-}
+// ---- entrada ----
+$in = body_input();
 
-// -------------------- Insert --------------------
-$sql = "INSERT INTO alunos
-          (nome, cpf, ra, data_nascimento, curso, turno, serie, contato_aluno)
-        VALUES
-          (:nome, :cpf, :ra, :data_nascimento, :curso, :turno, :serie, :contato_aluno)";
+// Aceita vários nomes de campos (garantimos compatibilidade)
+$nome            = pick($in, ['nome','nome_aluno','aluno_nome','txt_nome','input_nome']);
+$cpf             = pick($in, ['cpf','cpf_aluno','aluno_cpf','documento']);
+$ra              = pick($in, ['ra','registro_aluno','aluno_ra']);
+$data_nascimento = pick($in, ['data_nascimento','nascimento','data_nasc']);
+$contato_aluno   = pick($in, ['contato_aluno','contato','telefone','celular','phone']);
 
+$cep             = mask_cep(pick($in, ['cep']));
+$end_rua         = pick($in, ['endereco_rua','rua','logradouro']);
+$end_numero      = pick($in, ['endereco_numero','numero','num']);
+$end_bairro      = pick($in, ['endereco_bairro','bairro']);
+$end_cidade      = pick($in, ['endereco_cidade','cidade']);
+$end_estado      = norm_uf(pick($in, ['endereco_estado','estado','uf']));
+
+$curso           = pick($in, ['curso']);
+$turno           = pick($in, ['turno']);
+$serie           = pick($in, ['serie']);
+
+// ---- validações (evita novos vazios) ----
+if (!$nome) { http_response_code(400); echo json_encode(['success'=>false,'error'=>'Nome é obrigatório.']); exit; }
+if (!$cpf)  { http_response_code(400); echo json_encode(['success'=>false,'error'=>'CPF é obrigatório.']); exit; }
+if (!$curso || !$turno || !$serie) { http_response_code(400); echo json_encode(['success'=>false,'error'=>'Curso/Turno/Série são obrigatórios.']); exit; }
+if (isset($in['cep']) && !$cep) { http_response_code(400); echo json_encode(['success'=>false,'error'=>'CEP inválido.']); exit; }
+
+// ---- insert ----
 try {
-  if ($pdo) {
-    $stmt = $pdo->prepare($sql);
-    $ok = $stmt->execute([
-      ':nome'             => $nome,
-      ':cpf'              => $cpf,
-      ':ra'               => ($ra !== '' ? $ra : null),
-      ':data_nascimento'  => $data_nascimento, // pode ser null
-      ':curso'            => $curso,
-      ':turno'            => $turno,
-      ':serie'            => $serie,
-      ':contato_aluno'    => $contato_aluno
+  if (isset($pdo) && $pdo instanceof PDO) {
+    $sql = "
+      INSERT INTO alunos
+        (nome, cpf, ra, data_nascimento, contato_aluno,
+         cep, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado,
+         curso, turno, serie)
+      VALUES
+        (:nome, :cpf, :ra, :data_nascimento, :contato_aluno,
+         :cep, :endereco_rua, :endereco_numero, :endereco_bairro, :endereco_cidade, :endereco_estado,
+         :curso, :turno, :serie)
+    ";
+    $st = $pdo->prepare($sql);
+    $ok = $st->execute([
+      ':nome'=>$nome, ':cpf'=>$cpf, ':ra'=>$ra, ':data_nascimento'=>$data_nascimento, ':contato_aluno'=>$contato_aluno,
+      ':cep'=>$cep, ':endereco_rua'=>$end_rua, ':endereco_numero'=>$end_numero, ':endereco_bairro'=>$end_bairro, ':endereco_cidade'=>$end_cidade, ':endereco_estado'=>$end_estado,
+      ':curso'=>$curso, ':turno'=>$turno, ':serie'=>$serie
     ]);
+    if(!$ok) throw new Exception('Falha ao inserir (PDO).');
+    echo json_encode(['success'=>true,'message'=>'Aluno cadastrado com sucesso.']); exit;
+  }
 
-    if (!$ok) {
-      jexit([
-        'success' => false,
-        'message' => 'Erro ao salvar aluno (PDO).',
-        'error'   => $stmt->errorInfo()[2] ?? null,
-        'sql'     => $sql,
-        'include_output' => $__include_output
-      ]);
-    }
-
-  } elseif ($mysqli) {
-    $sql = "INSERT INTO alunos
-              (nome, cpf, ra, data_nascimento, curso, turno, serie, contato_aluno)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-    $stmt = $mysqli->prepare($sql);
-    if (!$stmt) {
-      jexit([
-        'success' => false,
-        'message' => 'Falha ao preparar statement (MySQLi).',
-        'error'   => $mysqli->error,
-        'sql'     => $sql,
-        'include_output' => $__include_output
-      ]);
-    }
-
-    // Observação: passar NULL em bind_param é aceito quando a coluna permite NULL
-    $raParam  = ($ra !== '' ? $ra : null);
-    $dataParam = $data_nascimento; // pode ser null
-
-    $stmt->bind_param(
-      "sssssss",
-      $nome,
-      $cpf,
-      $raParam,
-      $dataParam,
-      $curso,
-      $turno,
-      $serie,
-      $contato_aluno
+  $mysqli = (isset($mysqli) && $mysqli instanceof mysqli) ? $mysqli : ((isset($conn) && $conn instanceof mysqli) ? $conn : null);
+  if ($mysqli) {
+    $sql = "
+      INSERT INTO alunos
+        (nome, cpf, ra, data_nascimento, contato_aluno,
+         cep, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado,
+         curso, turno, serie)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ";
+    $st = $mysqli->prepare($sql);
+    if (!$st) throw new Exception('Falha ao preparar statement (MySQLi).');
+    $st->bind_param(
+      "ssssssssssssss",
+      $nome, $cpf, $ra, $data_nascimento, $contato_aluno,
+      $cep, $end_rua, $end_numero, $end_bairro, $end_cidade, $end_estado,
+      $curso, $turno, $serie
     );
-
-    $ok = $stmt->execute();
-    if (!$ok) {
-      jexit([
-        'success' => false,
-        'message' => 'Erro ao salvar aluno (MySQLi).',
-        'error'   => $stmt->error,
-        'sql'     => $sql,
-        'include_output' => $__include_output
-      ]);
-    }
-  } else {
-    jexit([
-      'success' => false,
-      'message' => 'Nenhum conector de banco disponível (PDO/MySQLi).',
-      'include_output' => $__include_output
-    ]);
+    $ok = $st->execute();
+    if(!$ok) throw new Exception('Falha ao inserir (MySQLi).');
+    echo json_encode(['success'=>true,'message'=>'Aluno cadastrado com sucesso.']); exit;
   }
 
-  jexit([
-    'success' => true,
-    'message' => 'Aluno cadastrado com sucesso.'
-  ]);
-
+  throw new Exception('Nenhuma conexão de banco ativa.');
 } catch (Throwable $e) {
-  jexit([
-    'success' => false,
-    'message' => 'Exceção ao salvar aluno.',
-    'error'   => $e->getMessage(),
-    'sql'     => $sql,
-    'include_output' => $__include_output
-  ]);
+  http_response_code(500);
+  echo json_encode(['success'=>false,'error'=>$e->getMessage()]); exit;
 }
 ?>

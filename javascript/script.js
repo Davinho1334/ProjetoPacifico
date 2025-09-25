@@ -192,3 +192,68 @@ if (document.readyState === 'loading') {
 } else {
   initInputMasks();
 }
+
+// ENDEREÇO via CEP --------------------------------------------------
+  (function cepAutoFill(){
+    const onlyDigits = s => String(s||'').replace(/\D/g,'');
+
+    // máscara CEP 00000-000
+    const cepInput = document.getElementById('cep');
+    if (cepInput){
+      const maskCEP = v => {
+        v = onlyDigits(v).slice(0,8);
+        if (v.length <= 5) return v;
+        return v.replace(/^(\d{5})(\d{0,3})$/, '$1-$2');
+      };
+      const applyMask = () => {
+        const start = cepInput.selectionStart, oldLen = cepInput.value.length;
+        cepInput.value = maskCEP(cepInput.value);
+        const diff = cepInput.value.length - oldLen;
+        const pos = Math.max(0, (start ?? cepInput.value.length) + diff);
+        try{ cepInput.setSelectionRange(pos,pos); }catch(_){}
+      };
+      cepInput.addEventListener('input', applyMask);
+      cepInput.addEventListener('blur',  applyMask);
+    }
+
+    async function buscarCEP(cepLimpo){
+      try{
+        const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`, { cache:'no-store' });
+        const j = await resp.json();
+        if (j && !j.erro){
+          return {
+            rua:     j.logradouro || '',
+            bairro:  j.bairro || '',
+            cidade:  j.localidade || '',
+            estado:  j.uf || ''
+          };
+        }
+      }catch(e){}
+      return null;
+    }
+
+    async function handleCEPFetch(){
+      const raw = cepInput?.value || '';
+      const cep = onlyDigits(raw);
+      if (cep.length !== 8) return;
+
+      const dados = await buscarCEP(cep);
+      if (!dados) return; // silencioso; usuário pode digitar manualmente
+
+      const $ = id => document.getElementById(id);
+      const m = (id, val)=>{ const el=$(id); if(el && !el.value) el.value = val; };
+
+      m('endereco_rua',    dados.rua);
+      m('endereco_bairro', dados.bairro);
+      m('endereco_cidade', dados.cidade);
+      m('endereco_estado', dados.estado);
+      // número permanece manual
+    }
+
+    cepInput?.addEventListener('change', handleCEPFetch);
+    cepInput?.addEventListener('keyup',  () => {
+      // auto-busca quando completar 8 dígitos
+      const d = onlyDigits(cepInput.value);
+      if (d.length === 8) handleCEPFetch();
+    });
+  })();
