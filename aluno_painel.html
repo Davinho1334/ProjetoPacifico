@@ -5,25 +5,96 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Painel do Aluno</title>
   <link rel="stylesheet" href="css/style.css" />
-   <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <style>
+    /* ====== Tema azul + glass (igual empresa.html) ====== */
+    :root{
+      --bg-1:#0b0f14; --bg-2:#0e1520; --text:#e8f1ff; --text-muted:#a9b8d1;
+      --primary:#7bd4ff; --primary-2:#6aa8ff;
+      --stroke:rgba(255,255,255,.12); --stroke-strong:rgba(255,255,255,.2);
+    }
+    html, body{
+      background:
+        radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+        radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      color:var(--text);
+      font-family: Arial, sans-serif;
+      min-height:100%;
+    }
+
+    /* Topbar com título visível */
+    header.topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:1rem; padding:12px 16px; background:transparent;
+      position:sticky; top:0; z-index:5;
+      backdrop-filter:saturate(120%) blur(6px);
+      border-bottom:1px solid var(--stroke);
+    }
+    .topbar-left{display:flex; align-items:center; gap:.75rem}
+    .topbar-left img{height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4)}
+    .topbar-left h1{color:#fff !important; margin:0; font-weight:700; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.5)}
+    .topbar .actions{display:flex; gap:.5rem; flex-wrap:wrap}
+
+    /* Botões */
+    .btn{
+      border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(135deg, var(--primary), var(--primary-2));
+      color:#0b0f14;
+      padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+      transition: transform .12s ease, box-shadow .25s ease;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 0 0 6px rgba(123,212,255,.18); }
+    .btn.btn-outline{ background:transparent; color:var(--primary); border-color:var(--primary); }
+    .btn.btn-outline:hover{ background: rgba(123,212,255,.12); color:#ecf8ff; }
+
+    /* Conteúdo */
+    .wrap{ width:min(1000px, 95vw); margin: 24px auto; }
+    .glass{
+      background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border:1px solid var(--stroke); border-radius:18px; box-shadow:0 18px 44px rgba(0,0,0,.35);
+    }
+    .panel{ padding: 18px; }
+
+    .msg{
+      margin-bottom:12px; padding:10px 12px; border-radius:12px;
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+      color:var(--text-muted);
+    }
+    .msg.error{ background:rgba(255,77,77,.10); border-color:rgba(255,77,77,.45); color:#ffd7d7; }
+
+    .dashboard-cards{
+      display:grid; gap:12px;
+      grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+    }
+    .card{
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      color:var(--text);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+  </style>
 </head>
 <body>
   <header class="topbar" role="banner">
-      <div class="container">
-        <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"
-             alt="Brasão da SEDUC PI"
-             style="height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4);">
-        <h1>Portal Escola</h1>
-      </div>
-    </header>
-  <header class="topbar">
-    <h1>Painel do Aluno</h1>
-    <button id="logoutBtn" class="btn btn-outline">Sair</button>
+    <div class="topbar-left">
+      <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
+      <h1>Portal Escola</h1>
+    </div>
+    <div class="actions">
+      <button id="logoutBtn" class="btn btn-outline">Sair</button>
+    </div>
   </header>
 
-  <main class="container">
-    <div id="msg" class="msg"></div>
-    <section id="info" class="dashboard-cards"></section>
+  <main class="wrap">
+    <section class="glass panel">
+      <div id="msg" class="msg"></div>
+      <h2 style="margin:0 0 12px;color:var(--primary);letter-spacing:.02em;">Painel do Aluno</h2>
+      <section id="info" class="dashboard-cards"></section>
+    </section>
   </main>
 
   <script>
@@ -50,7 +121,6 @@
 
     logoutBtn.addEventListener('click', async () => {
       try {
-        // URL RELATIVA (mantém /ProjetoPacifico/)
         await fetch('php/aluno_logout.php', { method: 'POST', credentials: 'same-origin' });
       } finally {
         location.href = 'aluno_login.html';
@@ -96,7 +166,6 @@
     (async function init() {
       msg.textContent = 'Carregando seus dados...';
       try {
-        // URL RELATIVA + credenciais (mantém cookies de sessão)
         const res  = await fetch('php/get_me.php', { credentials: 'same-origin' });
         const text = await res.text();
         let data;
@@ -121,7 +190,7 @@
         }
 
         const d = data.data || {};
-        if ('recebeu_bolsa' in d)   d.recebeu_bolsa   = (d.recebeu_bolsa == null ? null : Number(d.recebeu_bolsa));
+        if ('recebeu_bolsa' in d)    d.recebeu_bolsa    = (d.recebeu_bolsa == null ? null : Number(d.recebeu_bolsa));
         if ('renovou_contrato' in d) d.renovou_contrato = Number(d.renovou_contrato);
 
         msg.textContent = '';
