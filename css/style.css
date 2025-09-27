@@ -284,7 +284,7 @@ input:focus, select:focus {
   text-align: left;
 }
 .table tr:nth-child(even) {
-  background: #f9f9f9;
+  background: transparent !important;
 }
 .table tr:hover {
   background: #f1f7ff;
@@ -325,4 +325,92 @@ input:focus, select:focus {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ======= PADRONIZAÇÃO DO TOPO DOS FORMULÁRIOS ======= */
+:root{
+  /* Use os MESMOS valores que você já usa hoje: */
+  --brand: #0b5bd3;          /* primária */
+  --brand-600: #0a4fb7;      /* hover */
+  --bg: #0f1216;             /* fundo geral (escuro) */
+  --surface: #171b21;        /* cartões/barras */
+  --text: #e6eef7;           /* texto principal */
+  --muted: #9fb0c3;          /* texto secundário */
+  --divider: #243040;        /* linhas sutis */
+}
+
+.form-top {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--divider);
+  position: sticky; top: 0; z-index: 50; /* fica fixo no topo da página do form */
+}
+
+.form-top .brand {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.form-top .brand img {
+  width: 44px; height: 44px; object-fit: contain;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.25));
+}
+
+.form-top .titles {
+  display: grid; gap: 2px;
+}
+
+.form-top .titles h1 {
+  margin: 0; font-size: 1.25rem; line-height: 1.2;
+  color: var(--text); font-weight: 700;
+}
+
+.form-top .titles p {
+  margin: 0; font-size: .9rem; color: var(--muted);
+}
+
+.form-top .actions {
+  justify-self: end;
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+
+.form-top .btn {
+  appearance: none; border: 1px solid transparent;
+  padding: 8px 12px; border-radius: 10px;
+  background: var(--brand); color: #fff; font-weight: 600;
+  transition: transform .12s ease, background .2s ease, border-color .2s ease;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+}
+.form-top .btn:hover { background: var(--brand-600); transform: translateY(-1px); }
+.form-top .btn.outline {
+  background: transparent; color: var(--text); border-color: var(--divider);
+}
+.form-top .btn.outline:hover { border-color: var(--brand); color: #fff; }
+
+/* Container padrão de formulário (opcional para harmonizar) */
+.form-shell {
+  max-width: 1100px; margin: 22px auto; padding: 0 18px;
+}
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 16px; padding: 18px; margin-bottom: 16px;
+}
+
+/* Títulos dentro dos cartões (garante visibilidade) */
+.form-card h2, .form-card h3, .form-card label, .form-card span, .form-card p {
+  color: var(--text);
+}
+
+/* Responsivo */
+@media (max-width: 720px){
+  .form-top {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .form-top .actions { justify-self: start; }
+  .form-top .titles h1 { font-size: 1.1rem; }
 }

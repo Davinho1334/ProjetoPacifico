@@ -76,6 +76,23 @@
       .form-container{ padding:22px 16px; margin:6vh auto; }
       .actions{ gap:8px; }
     }
+    /* Desativa qualquer alternância de cor nas tabelas do dashboard */
+  table.table > tbody > tr:nth-child(even),
+  table.table > tbody > tr:nth-child(odd),
+  table.table > tbody > tr.even,
+  table.table > tbody > tr.odd,
+  table.table > tbody > tr:nth-child(even) > td,
+  table.table > tbody > tr:nth-child(odd) > td,
+  table.table > tbody > tr.even > td,
+  table.table > tbody > tr.odd > td {
+    background: transparent !important;
+  }
+
+  /* Mantém só o hover suave */
+  table.table > tbody > tr:hover > td {
+    background: rgba(255,255,255,.04) !important;
+  }
+
   </style>
 </head>
 <body>

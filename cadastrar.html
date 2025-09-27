@@ -33,6 +33,23 @@
     font-family: Arial, sans-serif;
   }
 
+  header.topbar{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:.75rem;
+      padding:1rem;
+      background:transparent;
+  }
+
+  header.topbar h1{
+    color:#fff !important;
+    font-weight:700;
+    margin:0;
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+    letter-spacing:.02em;
+  }
+
   .form-container{
     width: min(96vw, 620px);
     margin: 8vh auto;
@@ -71,6 +88,32 @@
   }
   #loginForm input::placeholder{ color: var(--text-muted); }
   #loginForm input:focus{
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 6px rgba(123,212,255,.15);
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
+  }
+
+  #cadastroForm{ display:grid; gap:16px; }
+
+  #cadastroForm label{
+    display:grid; gap:8px;
+    font-weight:600; color:var(--text);
+  }
+  #cadastroForm input,
+  #cadastroForm select{
+    appearance:none;
+    height:44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+    color: var(--text);
+    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  #cadastroForm input::placeholder{ color: var(--text-muted); }
+  #cadastroForm input:focus, #cadastroForm select:focus{
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 6px rgba(123,212,255,.15);
@@ -140,13 +183,11 @@
 </style>
 <body>
   <header class="topbar" role="banner">
-      <div class="container">
-        <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"
-             alt="Brasão da SEDUC PI"
-             style="height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4);">
-        <h1>Portal Escola</h1>
-      </div>
-    </header>
+    <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"
+         alt="Brasão da SEDUC PI"
+         style="height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4);">
+    <h1>Portal Escola</h1>
+  </header>
   <main class="form-container">
     <h2>Cadastro do Aluno</h2>
     <form id="cadastroForm" action="php/register_student.php" method="POST">
