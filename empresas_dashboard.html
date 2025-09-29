@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Empresas — Dashboard</title>
+  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <style>
+    :root{
+      --bg-1:#0b0f14; --bg-2:#0e1520; --text:#e8f1ff; --text-muted:#a9b8d1;
+      --primary:#7bd4ff; --primary-2:#6aa8ff;
+      --stroke:rgba(255,255,255,.12); --stroke-strong:rgba(255,255,255,.2);
+      --panel:#0f1720; --panel-2:#0b131c;
+    }
+    html, body{
+      background:
+        radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+        radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      color:var(--text); font-family: Arial, sans-serif; min-height:100%;
+      margin:0;
+    }
+    body.drawer-open{ overflow:hidden; }
+
+    /* Topbar */
+    header.topbar{
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+      padding:12px 16px; position:sticky; top:0; z-index:5;
+      backdrop-filter:saturate(120%) blur(6px); border-bottom:1px solid var(--stroke);
+    }
+    .topbar-left{display:flex; align-items:center; gap:.75rem}
+    .topbar-left img{height:34px;width:auto;border-radius:4px;box-shadow:0 0 6px rgba(0,0,0,.4)}
+    .topbar-left h1{margin:0;font-weight:700;letter-spacing:.02em;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+    .topbar .actions{display:flex; gap:.5rem; flex-wrap:wrap}
+
+    /* Painel e botões */
+    .wrap{ width:min(1200px, 95vw); margin: 24px auto; }
+    .glass{
+      background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border:1px solid var(--stroke); border-radius:18px; box-shadow:0 18px 44px rgba(0,0,0,.35);
+    }
+    .panel{ padding:18px; }
+
+    .btn{
+      border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(135deg, var(--primary), var(--primary-2));
+      color:#0b0f14; padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+      transition: transform .12s ease, box-shadow .25s ease;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 0 0 6px rgba(123,212,255,.18); }
+    .btn.btn-outline{ background:transparent; color:var(--primary); border-color:var(--primary); }
+    .btn.btn-outline:hover{ background: rgba(123,212,255,.12); color:#ecf8ff; }
+    .btn-small{ padding:.25rem .55rem; font-size:12px; }
+    .btn-danger{ background: linear-gradient(135deg, #ff7680, #ff4b6e); color:#190b10; border-color: rgba(255,120,128,.5); }
+    .btn-danger:hover{ box-shadow:0 0 0 6px rgba(255,120,128,.18); }
+
+    .filters{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin: 8px 0 16px 0; }
+    .filters label{display:flex; flex-direction:column; gap:6px; font-weight:600}
+    .filters input, .filters select{
+      height:40px; padding:0 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      color:var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    /* Tabela */
+    table.table{
+      width:100%; border-collapse:separate; border-spacing:0; overflow:hidden;
+      border:1px solid var(--stroke); border-radius:14px; background:rgba(255,255,255,.03);
+    }
+    .table thead th{
+      text-align:left; padding:12px; font-size:13px; color:#dce9ff; background:rgba(255,255,255,.05);
+      border-bottom:1px solid var(--stroke-strong);
+    }
+    .table tbody td{ padding:12px; border-top:1px solid var(--stroke); color:var(--text) }
+    .table tbody tr:hover{ background:rgba(255,255,255,.04) }
+    .actions-cell{ display:flex; gap:.4rem; flex-wrap:wrap; }
+
+    /* Drawer (coluna) */
+    .drawer{ position:fixed; inset:0; display:none; background:rgba(0,0,0,.45); z-index:60; }
+    .drawer.open{ display:block; }
+    .drawer-panel{
+      position:absolute; left:0; top:0; height:100%; width:min(560px, 96vw);
+      background:linear-gradient(180deg, var(--panel), var(--panel-2));
+      border-right:1px solid var(--stroke); box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      transform: translateX(-8%); opacity:.0; transition: transform .18s ease, opacity .18s ease;
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+    .drawer.open .drawer-panel{ transform: translateX(0); opacity:1; }
+    .drawer-header{
+      padding:16px; position:sticky; top:0; background: linear-gradient(180deg, rgba(15,23,32,1), rgba(15,23,32,.85));
+      border-bottom:1px solid var(--stroke-strong); z-index:1;
+    }
+    .drawer-title{ margin:0; font-weight:800; }
+    .drawer-body{
+      overflow:auto; padding:16px; display:flex; flex-direction:column; gap:.7rem;
+      overflow-x:hidden;
+    }
+    .drawer-body label{ display:flex; flex-direction:column; font-size:13px; }
+    .drawer-body input, .drawer-body select{
+      width:100%; padding:.6rem .7rem; margin-top:.25rem;
+      border-radius:10px; border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      color:var(--text);
+    }
+    .drawer-footer{
+      position:sticky; bottom:0; padding:10px 16px; background:linear-gradient(180deg, rgba(15,23,32,.2), rgba(15,23,32,.95));
+      border-top:1px solid var(--stroke-strong); display:flex; justify-content:flex-end; gap:.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
+      <h1>Empresas</h1>
+    </div>
+    <div class="actions">
+      <a href="admin_dashboard.html" class="btn btn-outline">Voltar</a>
+      <a href="empresa.html" class="btn btn-outline">Cadastrar Empresa</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="glass panel">
+      <div class="filters">
+        <label>Pesquisar (nome, CNPJ, cidade)
+          <input id="searchInput" placeholder="Ex.: Farmácia São José · 12.345.678/0001-90 · Teresina" />
+        </label>
+        <label>Tipo de contrato
+          <select id="filterTipo">
+            <option value="">Todos</option>
+            <option>Aprendizagem Profissional</option>
+            <option>Estágio</option>
+          </select>
+        </label>
+        <button id="clearBtn" class="btn btn-outline">Limpar</button>
+      </div>
+
+      <table class="table" id="companiesTable">
+        <thead>
+          <tr>
+            <th>Empresa</th><th>CNPJ</th><th>Telefone</th><th>Cidade/UF</th><th>Tipo</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody><!-- via JS --></tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- Drawer de edição (coluna) -->
+  <div id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-header">
+        <h2 id="drawerTitle" class="drawer-title">Editar Empresa</h2>
+      </div>
+
+      <form id="editForm" class="drawer-body">
+        <input type="hidden" name="id" id="ed_id" />
+        <label>Razão Social
+          <input type="text" name="razao_social" id="ed_razao_social" required />
+        </label>
+        <label>CNPJ
+          <input type="text" name="cnpj" id="ed_cnpj" required />
+        </label>
+        <label>CEP
+          <input type="text" name="cep" id="ed_cep" maxlength="9" />
+        </label>
+        <label>Número
+          <input type="text" name="endereco_numero" id="ed_endereco_numero" />
+        </label>
+        <label>Rua
+          <input type="text" name="endereco_rua" id="ed_endereco_rua" />
+        </label>
+        <label>Bairro
+          <input type="text" name="endereco_bairro" id="ed_endereco_bairro" />
+        </label>
+        <label>Cidade
+          <input type="text" name="endereco_cidade" id="ed_endereco_cidade" />
+        </label>
+        <label>UF
+          <input type="text" name="endereco_estado" id="ed_endereco_estado" maxlength="2" />
+        </label>
+        <label>Telefone
+          <input type="text" name="telefone" id="ed_telefone" maxlength="20" />
+        </label>
+        <label>Tipo de Contrato
+          <select name="tipo_contrato" id="ed_tipo_contrato" required>
+            <option value="Aprendizagem Profissional">Aprendizagem Profissional</option>
+            <option value="Estágio">Estágio</option>
+          </select>
+        </label>
+      </form>
+
+      <div class="drawer-footer">
+        <button type="button" class="btn btn-outline" id="btnCancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnDelete">Excluir</button>
+        <button type="submit" form="editForm" class="btn">Salvar alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $  = (s)=>document.querySelector(s);
+    const $$ = (s)=>Array.from(document.querySelectorAll(s));
+
+    const tbody = $('#companiesTable tbody');
+    const searchInput = $('#searchInput');
+    const filterTipo = $('#filterTipo');
+    const clearBtn = $('#clearBtn');
+
+    const drawer = $('#drawer');
+    const editForm = $('#editForm');
+    const btnCancel = $('#btnCancel');
+    const btnDelete = $('#btnDelete');
+
+    let allCompanies = [];
+    let currentId = null;
+
+    // ===== Abrir/fechar drawer
+    function openDrawer(){
+      document.body.classList.add('drawer-open');
+      drawer.classList.add('open');
+      drawer.setAttribute('aria-hidden','false');
+      setTimeout(()=> $('#ed_razao_social')?.focus(), 80);
+    }
+    function closeDrawer(){
+      drawer.classList.remove('open');
+      drawer.setAttribute('aria-hidden','true');
+      document.body.classList.remove('drawer-open');
+      currentId = null;
+      editForm.reset();
+    }
+    drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
+    btnCancel.addEventListener('click', closeDrawer);
+
+    // ===== Helpers (sem mudar PHP)
+    const pick = (obj, keys, def='')=>{
+      for(const k of keys){ if (obj && obj[k] != null && obj[k] !== '') return obj[k]; }
+      return def;
+    };
+
+    // ===== Dados
+    async function fetchCompanies(){
+      const res = await fetch('php/get_companies.php?t=' + Date.now(), { credentials:'same-origin', cache:'no-store' });
+      const json = await res.json().catch(()=>({success:false}));
+      if(!json.success) throw new Error(json.message||'Erro ao buscar empresas');
+      return json.data || [];
+    }
+
+    async function reloadCompanies(){
+      allCompanies = await fetchCompanies();
+      applyFilters();
+    }
+
+    function normalize(str){ return String(str||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase(); }
+
+    function applyFilters(){
+      const q = normalize(searchInput.value);
+      const tipo = filterTipo.value;
+      const list = allCompanies.filter(c => {
+        const texto = normalize([
+          c.razao_social, c.cnpj, c.endereco_cidade, c.endereco_estado, c.telefone
+        ].filter(Boolean).join(' '));
+        const okQ = !q || texto.includes(q);
+        const okT = !tipo || String(c.tipo_contrato) === tipo;
+        return okQ && okT;
+      });
+      renderTable(list);
+    }
+
+    function renderTable(list){
+      if(!list.length){
+        tbody.innerHTML = '<tr><td colspan="6">Nenhuma empresa encontrada</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(c => `
+        <tr data-id="${c.id}">
+          <td>${c.razao_social || ''}</td>
+          <td>${c.cnpj || ''}</td>
+          <td>${c.telefone || ''}</td>
+          <td>${[c.endereco_cidade||'', c.endereco_estado||''].filter(Boolean).join('/')}</td>
+          <td>${c.tipo_contrato || ''}</td>
+          <td class="actions-cell">
+            <button class="btn btn-small btn-edit" data-id="${c.id}">Editar</button>
+            <button class="btn btn-small btn-danger btn-del" data-id="${c.id}">Excluir</button>
+          </td>
+        </tr>
+      `).join('');
+      $$('.btn-edit').forEach(b => b.addEventListener('click', onClickEdit));
+      $$('.btn-del').forEach(b => b.addEventListener('click', onClickDelete));
+    }
+
+    function fillForm(c){
+      $('#ed_id').value              = c.id ?? '';
+      $('#ed_razao_social').value    = c.razao_social ?? '';
+      $('#ed_cnpj').value            = c.cnpj ?? '';
+      $('#ed_cep').value             = c.cep ?? '';
+      $('#ed_endereco_numero').value = c.endereco_numero ?? '';
+      $('#ed_endereco_rua').value    = c.endereco_rua ?? '';
+      $('#ed_endereco_bairro').value = c.endereco_bairro ?? '';
+      $('#ed_endereco_cidade').value = c.endereco_cidade ?? '';
+      $('#ed_endereco_estado').value = c.endereco_estado ?? '';
+      $('#ed_telefone').value        = c.telefone ?? '';
+      $('#ed_tipo_contrato').value   = c.tipo_contrato || 'Aprendizagem Profissional';
+    }
+
+    function onClickEdit(e){
+      currentId = e.currentTarget.dataset.id;
+      const c = allCompanies.find(x => String(x.id) === String(currentId));
+      if(!c){ alert('Registro não encontrado.'); return; }
+      fillForm(c);
+      openDrawer();
+    }
+
+    async function onClickDelete(e){
+      const id = e.currentTarget.dataset.id;
+      const c = allCompanies.find(x => String(x.id) === String(id));
+      if(!c){ alert('Registro não encontrado.'); return; }
+      if(!confirm(`Excluir a empresa "${c.razao_social}"? Esta ação não pode ser desfeita.`)) return;
+
+      try{
+        const fd = new FormData(); fd.append('id', id);
+        const resp = await fetch('php/delete_company.php', { method:'POST', body: fd, credentials:'same-origin' });
+        const j = await resp.json().catch(()=>({success:false, message:'Falha ao excluir'}));
+        if(!j.success) throw new Error(j.message||'Falha ao excluir');
+
+        await reloadCompanies();
+        if(currentId===id) closeDrawer();
+        alert('Empresa excluída.');
+      }catch(err){
+        alert('Erro: ' + err.message);
+      }
+    }
+
+    editForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(editForm); // já contém "telefone"
+
+      try{
+        const resp = await fetch('php/update_company.php', { method:'POST', body: fd, credentials:'same-origin' });
+        const j = await resp.json().catch(()=>({success:false, message:'Falha ao atualizar'}));
+        if(!j.success) throw new Error(j.message||'Falha ao atualizar');
+
+        // Recarrega do servidor para refletir o valor salvo no DB
+        await reloadCompanies();
+        closeDrawer();
+        alert('Empresa atualizada.');
+      }catch(err){
+        alert('Erro: ' + err.message);
+      }
+    });
+
+    // filtros
+    searchInput.addEventListener('input', applyFilters);
+    filterTipo.addEventListener('change', applyFilters);
+    clearBtn.addEventListener('click', ()=>{ searchInput.value=''; filterTipo.value=''; applyFilters(); });
+
+    (async function init(){
+      try{
+        await reloadCompanies();
+      }catch(e){
+        tbody.innerHTML = '<tr><td colspan="6">Erro ao carregar empresas</td></tr>';
+        console.error(e);
+      }
+    })();
+  </script>
+</body>
+</html>

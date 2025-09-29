@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cadastrar Administrador</title>
+  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
+  <style>
+    :root{--bg:#0e1520;--text:#e8f1ff;--muted:#a9b8d1;--stroke:rgba(255,255,255,.14);--primary:#7bd4ff}
+    html,body{background:linear-gradient(180deg,#0b0f14,#0e1520);color:var(--text);margin:0;font-family:Arial,Helvetica,sans-serif}
+    .wrap{max-width:680px;margin:8vh auto;padding:22px}
+    .card{background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:16px;padding:22px}
+    .grid{display:grid;gap:14px}
+    label{display:grid;gap:8px;font-weight:600}
+    input{height:44px;border-radius:12px;border:1px solid var(--stroke);background:rgba(255,255,255,.05);color:var(--text);padding:10px 12px}
+    input::placeholder{color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    button,.btn{border:none;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    button{background:linear-gradient(135deg,#7bd4ff,#6aa8ff);color:#0b0f14}
+    a.btn{border:1px solid var(--primary);background:transparent;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+    .msg{margin-top:10px;color:var(--muted)}
+    .msg.error{color:#ff9c9c}
+    header{display:flex;gap:.75rem;align-items:center;justify-content:center;padding:18px}
+    header img{height:34px}
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão SEDUC">
+    <h1>Portal Escola — Cadastrar Admin</h1>
+  </header>
+  <div class="wrap">
+    <div class="card">
+      <form id="formAdmin" class="grid" autocomplete="off" novalidate>
+        <label>Nome
+          <input type="text" name="nome" placeholder="Nome completo" required />
+        </label>
+        <label>CPF (11 dígitos)
+          <input type="text" name="cpf" id="cpf" placeholder="000.000.000-00" inputmode="numeric" required />
+        </label>
+        <label>E-mail (opcional)
+          <input type="email" name="email" placeholder="exemplo@dominio.com" />
+        </label>
+        <div class="row">
+          <label style="flex:1">Senha
+            <input type="password" name="senha" placeholder="Mínimo 6 caracteres" required />
+          </label>
+        </div>
+        <div class="row">
+          <button type="submit">Cadastrar</button>
+          <a class="btn" href="admin_login.html">Ir para login</a>
+        </div>
+        <div id="msg" class="msg" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // máscara CPF igual à do login
+    (function(){
+      const input=document.getElementById('cpf');
+      function fmt(v){
+        v=String(v||'').replace(/\D/g,'').slice(0,11);
+        v=v.replace(/(\d{3})(\d)/,'$1.$2');
+        v=v.replace(/(\d{3})(\d)/,'$1.$2');
+        v=v.replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+        return v;
+      }
+      input.addEventListener('input', (e)=>{ e.target.value = fmt(e.target.value); });
+      input.addEventListener('blur',  (e)=>{ e.target.value = fmt(e.target.value); });
+    })();
+
+    // submit
+    (function(){
+      const form=document.getElementById('formAdmin');
+      const msg =document.getElementById('msg');
+
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        msg.className='msg';
+        msg.textContent='Salvando...';
+
+        // Envia como está (com máscara). O backend remove os não dígitos.
+        const fd=new FormData(form);
+
+        try{
+          const res=await fetch('php/create_admin.php',{ method:'POST', body:fd, credentials:'same-origin' });
+          const txt=await res.text();
+          let data=null; try{ data=JSON.parse(txt); }catch{}
+          if(res.ok && data && data.success){
+            msg.textContent='Cadastrado! Redirecionando para o login...';
+            setTimeout(()=>location.href='admin_login.html', 800);
+            return;
+          }
+          const err=(data && (data.error||data.message)) || txt || 'Erro ao cadastrar.';
+          msg.className='msg error'; msg.textContent=err;
+        }catch(err){
+          msg.className='msg error'; msg.textContent='Erro de rede: '+(err.message||err);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
