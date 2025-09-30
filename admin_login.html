@@ -1,237 +1,74 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Login Administrador</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
-  <style>
-    :root{
-      --bg-1:#0b0f14; --bg-2:#0e1520; --text:#e8f1ff; --text-muted:#a9b8d1;
-      --primary:#7bd4ff; --primary-2:#6aa8ff;
-      --stroke:rgba(255,255,255,.12); --stroke-strong:rgba(255,255,255,.2);
-    }
-    html, body{
-      background:
-        radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
-        radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
-        linear-gradient(180deg, var(--bg-1), var(--bg-2));
-      color:var(--text); font-family: Arial, sans-serif;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      height:100%;
-      margin:0;
-    }
-    header.topbar{
-      display:flex; align-items:center; justify-content:center; gap:.75rem;
-      padding:1rem; background:transparent;
-    }
-    header.topbar img{ height:34px; width:auto; border-radius:4px; box-shadow:0 0 6px rgba(0,0,0,.4); }
-    header.topbar h1{
-      color:#fff !important; font-weight:700; margin:0;
-      text-shadow:0 1px 2px rgba(0,0,0,.5); letter-spacing:.02em;
-    }
-    .form-container{
-      width:min(96vw, 620px); margin:8vh auto; padding:28px 24px; border-radius:18px;
-      background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-      border:1px solid var(--stroke);
-      box-shadow:0 18px 44px rgba(0,0,0,.35);
-    }
-    .form-container h2{ color:var(--primary); text-align:center; margin:0 0 14px; font-weight:700; }
-
-    #loginForm{ display:grid; gap:16px; }
-    #loginForm label{ display:grid; gap:8px; font-weight:600; color:var(--text); font-size:14px; }
-    #loginForm input[type="text"], #loginForm input[type="password"]{
-      appearance:none; height:44px; padding:10px 12px; border-radius:12px;
-      border:1px solid rgba(255,255,255,.14);
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
-      color:var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-      transition:border-color .2s, box-shadow .2s, background .2s;
-    }
-    #loginForm input::placeholder{ color:var(--text-muted); }
-    #loginForm input:focus{
-      outline:none; border-color:var(--primary);
-      box-shadow:0 0 0 6px rgba(123,212,255,.15);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
-    }
-
-    .actions{ display:flex; gap:10px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
-    .btn{
-      border:none; border-radius:12px; padding:10px 14px; font-weight:600; cursor:pointer;
-      background:linear-gradient(135deg, var(--primary), var(--primary-2)); color:#0b0f14;
-      box-shadow: 0 6px 18px rgba(0,0,0,.18);
-    }
-    .btn:active{ transform:translateY(1px); }
-    .btn-outline{
-      background:transparent; border:1px solid var(--primary); color:var(--primary); padding:9px 13px;
-      border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;
-    }
-    .btn-outline:hover{ background:rgba(123,212,255,.06); color:#ecf8ff; border-color:rgba(123,212,255,.9); }
-
-    .msg{ margin-top:10px; font-size:.95rem; text-align:center; color:var(--text-muted); }
-    .msg.error{ color:#ff8c8c; }
-
-    @media (max-width:420px){
-      .form-container{ padding:22px 16px; margin:6vh auto; }
-      .actions{ gap:8px; }
-    }
-    /* Desativa qualquer alternância de cor nas tabelas do dashboard */
-  table.table > tbody > tr:nth-child(even),
-  table.table > tbody > tr:nth-child(odd),
-  table.table > tbody > tr.even,
-  table.table > tbody > tr.odd,
-  table.table > tbody > tr:nth-child(even) > td,
-  table.table > tbody > tr:nth-child(odd) > td,
-  table.table > tbody > tr.even > td,
-  table.table > tbody > tr.odd > td {
-    background: transparent !important;
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Login Administrador</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"/>
+<style>
+  :root{--bg-1:#0b0f14;--bg-2:#0e1520;--text:#e8f1ff;--text-muted:#a9b8d1;--primary:#7bd4ff;--primary-2:#6aa8ff;--stroke:rgba(255,255,255,.12)}
+  body{background:
+    radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));color:var(--text);font-family:Arial,sans-serif;margin:0}
+  header.topbar{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:.75rem;
+      padding:1rem;
+      background:transparent;
   }
 
-  /* Mantém só o hover suave */
-  table.table > tbody > tr:hover > td {
-    background: rgba(255,255,255,.04) !important;
+  header.topbar h1{
+    color:#fff !important;
+    font-weight:700;
+    margin:0;
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+    letter-spacing:.02em;
   }
 
-  </style>
+  .box{width:min(620px,96vw);margin:8vh auto;padding:28px 24px;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--stroke);backdrop-filter:blur(10px)}
+  label{display:grid;gap:8px;font-weight:600}
+  input{height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03));color:var(--text);padding:0 12px}
+  .btn{border:1px solid rgba(255,255,255,.10);background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#0b0f14;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .actions{display:flex;gap:10px;justify-content:center;margin-top:10px}
+  .msg{margin-top:10px;text-align:center}
+</style>
 </head>
 <body>
-  <header class="topbar" role="banner">
-    <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
-    <h1>Portal Escola</h1>
-  </header>
+<header class="topbar">
+  <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="" style="height:34px">
+  <h1>Portal Escola</h1>
+</header>
 
-  <main class="form-container" role="main">
-    <h2>Login - Administrador</h2>
+<main class="box">
+  <h2 style="margin:0 0 14px">Login — Administrador</h2>
+  <form id="login" autocomplete="off" novalidate>
+    <label>E-mail
+      <input type="email" name="email" required autocomplete="username"/>
+    </label>
+    <label>Senha
+      <input type="password" name="password" required autocomplete="current-password"/>
+    </label>
+    <div class="actions">
+      <button class="btn" type="submit">Entrar</button>
+      <a class="btn" href="admin_access.html" style="background:transparent;border-color:var(--primary);color:var(--primary)">Criar administrador</a>
+    </div>
+    <div id="msg" class="msg"></div>
+  </form>
+</main>
 
-    <form id="loginForm" autocomplete="off" novalidate>
-      <label for="cpfAdmin">CPF
-        <input
-          type="text"
-          name="cpf"
-          id="cpfAdmin"
-          placeholder="000.000.000-00"
-          inputmode="numeric"
-          autocomplete="username"
-          required
-          aria-label="CPF" />
-      </label>
-
-      <label for="senhaAdmin">Senha
-        <input
-          type="password"
-          name="senha"
-          id="senhaAdmin"
-          autocomplete="current-password"
-          required
-          aria-label="Senha" />
-      </label>
-
-      <div class="actions">
-        <button type="submit" class="btn" aria-label="Entrar">Entrar</button>
-        <a href="index.html" class="btn-outline" role="button" aria-label="Voltar">Voltar</a>
-      </div>
-
-      <div id="msg" class="msg" aria-live="polite"></div>
-    </form>
-  </main>
-
-  <script>
-    // Máscara CPF robusta mantendo posição do cursor da forma mais natural possível
-    (function(){
-      const input = document.getElementById('cpfAdmin');
-
-      function formatCPF(v){
-        v = String(v||'').replace(/\D/g,'').slice(0,11);
-        v = v.replace(/(\d{3})(\d)/, '$1.$2');
-        v = v.replace(/(\d{3})(\d)/, '$1.$2');
-        v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-        return v;
-      }
-
-      function setCaretPosition(el, pos){
-        try { el.setSelectionRange(pos, pos); }
-        catch(e){ /* não essencial em navegadores antigos */ }
-      }
-
-      input.addEventListener('input', (e)=>{
-        const el = e.target;
-        const old = el.value;
-        const selectionStart = el.selectionStart || 0;
-
-        // Count digits before caret
-        const digitsBefore = (old.slice(0, selectionStart).match(/\d/g) || []).length;
-
-        const formatted = formatCPF(old);
-        el.value = formatted;
-
-        // Compute new caret pos based on digitsBefore
-        let newPos = formatted.length;
-        if (digitsBefore === 0) newPos = 0;
-        else {
-          // map digits count to position in formatted string
-          let count = 0;
-          for (let i = 0; i < formatted.length; i++){
-            if (/\d/.test(formatted[i])) count++;
-            if (count >= digitsBefore){
-              newPos = i + 1;
-              break;
-            }
-          }
-        }
-        setCaretPosition(el, newPos);
-      });
-
-      // Ensure formatting on blur as well
-      input.addEventListener('blur', (e)=>{
-        e.target.value = formatCPF(e.target.value);
-      });
-    })();
-
-    // Envio do formulário (login)
-    (function(){
-      const form = document.getElementById('loginForm');
-      const msg  = document.getElementById('msg');
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        msg.className = 'msg';
-        msg.textContent = 'Entrando...';
-
-        try {
-          // Envia o CPF já com máscara. Se o servidor esperar somente dígitos,
-          // o backend pode limpar os não dígitos. Aqui enviamos o valor do input.
-          const fd = new FormData(form);
-
-          const res = await fetch('php/admin_login.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: fd
-          });
-
-          // tenta ler JSON; se o servidor retornar texto, exibe parte
-          const text = await res.text();
-          let data = null;
-          try { data = JSON.parse(text); } catch { data = null; }
-
-          if (res.ok && data && data.success) {
-            // sucesso -> redireciona
-            location.href = 'admin_dashboard.html';
-            return;
-          }
-
-          // erro: tenta extrair mensagem do JSON ou mostra texto cru
-          const errMsg = (data && (data.message || data.error)) || text || 'Erro no login.';
-          msg.className = 'msg error';
-          msg.textContent = errMsg;
-
-        } catch (err) {
-          msg.className = 'msg error';
-          msg.textContent = 'Erro de rede: ' + (err.message || err);
-          console.error(err);
-        }
-      });
-    })();
-  </script>
+<script>
+document.getElementById('login').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r  = await fetch('php/admin_login.php',{method:'POST',body:fd,credentials:'same-origin'});
+  const t  = await r.text(); let j=null; try{j=JSON.parse(t)}catch{}
+  if(j&&j.success){ location.href='admin_dashboard.html'; }
+  else document.getElementById('msg').textContent=(j&&j.message)||t||'Erro no login';
+});
+</script>
 </body>
 </html>

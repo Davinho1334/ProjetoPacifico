@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Meu Perfil — Admin</title>
+<link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"/>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+  :root{--bg-1:#0b0f14;--bg-2:#0e1520;--text:#e8f1ff;--primary:#7bd4ff;--stroke:rgba(255,255,255,.12)}
+  body{background:
+    radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));color:var(--text);font-family:Arial,sans-serif;margin:0;min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:12px 16px;border-bottom:1px solid var(--stroke)}
+  .wrap{width:min(900px,95vw);margin:20px auto}
+  .card{border:1px solid var(--stroke);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03));padding:18px}
+  form{display:grid;gap:12px}
+  label{display:grid;gap:6px;font-weight:600}
+  input{height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03));color:var(--text);padding:0 12px}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .btn{border:1px solid rgba(255,255,255,.10);background:linear-gradient(135deg,var(--primary),#6aa8ff);color:#0b0f14;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;opacity:.8}
+  .pw-wrap{position:relative}
+</style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="" style="height:34px">
+      <h1 style="margin:0">Meu Perfil</h1>
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <a class="btn" href="admin_dashboard.html" style="background:transparent;border-color:var(--primary);color:var(--primary)">Voltar</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <form id="f">
+        <div class="row">
+          <label>Nome
+            <input name="name" required/>
+          </label>
+          <label>E-mail
+            <input type="email" name="email" required autocomplete="username"/>
+          </label>
+        </div>
+        <div class="row">
+          <label>Telefone
+            <input name="tel" placeholder="(xx) xxxxx-xxxx"/>
+          </label>
+          <div></div>
+        </div>
+
+        <div class="row">
+          <div class="pw-wrap">
+            <label>Senha atual
+              <input type="password" name="current_password" autocomplete="current-password"/>
+            </label>
+            <span class="eye" data-eye>👁️</span>
+          </div>
+          <div class="pw-wrap">
+            <label>Nova senha
+              <input type="password" name="new_password" autocomplete="new-password" placeholder="(opcional)"/>
+            </label>
+            <span class="eye" data-eye>👁️</span>
+          </div>
+        </div>
+
+        <button class="btn" type="submit">Salvar alterações</button>
+        <div id="msg" style="margin-top:6px"></div>
+      </form>
+    </section>
+  </main>
+
+<script>
+async function loadMe(){
+  const r = await fetch('php/get_current_admin.php',{credentials:'same-origin'});
+  if(r.status===401){ location.href='admin_login.html'; return; }
+  const j = await r.json();
+  const d = j.data||{};
+  const f = document.getElementById('f');
+  f.name.value  = d.name||'';
+  f.email.value = d.email||'';
+  f.tel.value = d.tel||'';
+}
+loadMe();
+
+document.querySelectorAll('[data-eye]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const input = btn.closest('.pw-wrap').querySelector('input');
+    input.type = input.type==='password' ? 'text' : 'password';
+  });
+});
+
+document.getElementById('f').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r  = await fetch('php/admin_profile_update.php',{method:'POST',body:fd,credentials:'same-origin'});
+  const t  = await r.text(); let j=null; try{j=JSON.parse(t)}catch{}
+  document.getElementById('msg').textContent = (j&&j.message) || t || 'OK';
+});
+</script>
+<script src="javascript/script.js" defer></script>
+</body>
+</html>

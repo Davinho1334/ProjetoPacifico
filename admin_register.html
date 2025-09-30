@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cadastrar Administrador</title>
+<link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg"/>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+  :root{--bg-1:#0b0f14;--bg-2:#0e1520;--text:#e8f1ff;--primary:#7bd4ff;--stroke:rgba(255,255,255,.12)}
+  body{min-height:100vh;display:grid;place-items:center;background:
+    radial-gradient(1000px 700px at 10% -10%, rgba(108,165,255,.15), transparent 60%),
+    radial-gradient(900px 600px at 110% 10%, rgba(123,212,255,.12), transparent 55%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));color:var(--text);font-family:Arial,sans-serif}
+  .box{width:min(720px,95vw);padding:24px;border-radius:16px;border:1px solid var(--stroke);
+    background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));backdrop-filter:blur(10px)}
+  form{display:grid;gap:12px}
+  label{display:grid;gap:6px;font-weight:600}
+  input{height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));color:var(--text);padding:0 12px}
+  .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .btn{border:1px solid rgba(255,255,255,.10);background:linear-gradient(135deg,var(--primary),#6aa8ff);
+    color:#0b0f14;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .msg{margin-top:6px}
+</style>
+</head>
+<body>
+  <main class="box">
+    <h2 style="margin:0 0 8px">Cadastrar Administrador</h2>
+    <p style="margin:0 0 14px;opacity:.85">Campos básicos para criar o usuário administrador.</p>
+    <form id="f" autocomplete="off">
+      <label>Nome completo
+        <input name="name" required/>
+      </label>
+      <div class="row">
+        <label>E-mail
+          <input type="email" name="email" required autocomplete="username"/>
+        </label>
+        <label>Telefone (opcional)
+          <input name="tel" placeholder="(xx) xxxxx-xxxx"/>
+        </label>
+      </div>
+      <div class="row">
+        <label>Senha
+          <input type="password" name="password" required autocomplete="new-password"/>
+        </label>
+        <label>Confirmar senha
+          <input type="password" name="password2" required autocomplete="new-password"/>
+        </label>
+      </div>
+      <button class="btn" type="submit">Criar administrador</button>
+      <div id="msg" class="msg"></div>
+    </form>
+  </main>
+<script>
+document.getElementById('f').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  if(fd.get('password') !== fd.get('password2')){
+    return document.getElementById('msg').textContent='As senhas não coincidem.';
+  }
+  const r = await fetch('php/admin_register.php',{method:'POST',body:fd,credentials:'same-origin'});
+  const t = await r.text(); let j=null; try{j=JSON.parse(t)}catch{}
+  if(j&&j.success){ location.href='admin_login.html'; }
+  else document.getElementById('msg').textContent = (j&&j.message) || t || 'Erro ao cadastrar';
+});
+</script>
+<script src="javascript/script.js" defer></script>
+</body>
+</html>

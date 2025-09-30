@@ -1,41 +1,30 @@
 <?php
-// php/admin_login.php
+require_once __DIR__.'/db.php';
 header('Content-Type: application/json; charset=utf-8');
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
-try {
-    require_once __DIR__ . '/db.php';
+$email = strtolower(trim($_POST['email'] ?? ''));
+$pass  = $_POST['password'] ?? '';
 
-    $cpf   = trim($_POST['cpf'] ?? '');
-    $senha = trim($_POST['senha'] ?? '');
+$stmt = pdo()->prepare("SELECT * FROM admins WHERE email=? LIMIT 1");
+$stmt->execute([$email]);
+$admin = $stmt->fetch();
 
-    if ($cpf === '' || $senha === '') {
-        echo json_encode(['success'=>false,'message'=>'Informe CPF e senha.']);
-        exit;
-    }
-
-    $st = $pdo->prepare("SELECT id, cpf, nome, senha_hash FROM admins WHERE cpf = :cpf LIMIT 1");
-    $st->execute([':cpf'=>$cpf]);
-    $adm = $st->fetch(PDO::FETCH_ASSOC);
-
-    if (!$adm) {
-        echo json_encode(['success'=>false,'message'=>'Administrador não encontrado.']);
-        exit;
-    }
-
-    if (!password_verify($senha, $adm['senha_hash'])) {
-        echo json_encode(['success'=>false,'message'=>'Senha incorreta.']);
-        exit;
-    }
-
-    $_SESSION['admin_id']         = $adm['id'];
-    $_SESSION['admin_cpf']        = $adm['cpf'];
-    $_SESSION['admin_nome']       = $adm['nome'];
-    $_SESSION['admin_logged_in']  = true; // flag usada pelo auth
-
-    echo json_encode(['success'=>true,'message'=>'Login realizado.']);
-} catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['success'=>false,'message'=>'Erro no servidor','error'=>$e->getMessage()]);
+if(!$admin || !password_verify($pass, $admin['password_hash'])){
+  http_response_code(401);
+  echo json_encode(['success'=>false,'message'=>'Credenciais inválidas']);
+  exit;
 }
+
+$_SESSION['admin_id'] = (int)$admin['id'];
+$_SESSION['admin_name'] = $admin['name'];
+
+pdo()->prepare("UPDATE admins SET last_login_at=NOW() WHERE id=?")->execute([$admin['id']]);
+
+[$ip,$ua] = client_meta();
+pdo()->prepare("INSERT INTO admin_sessions (admin_id, ip, user_agent) VALUES (?,?,?)")
+    ->execute([$admin['id'],$ip,$ua]);
+
+audit('ADMIN_LOGIN');
+
+echo json_encode(['success'=>true]);
 ?>

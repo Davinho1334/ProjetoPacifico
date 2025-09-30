@@ -100,17 +100,22 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-left">
-      <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
-      <h1 aria-label="Painel Administrativo">Painel Administrativo</h1>
+  <div class="topbar-left">
+    <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
+    <div>
+      <h1 aria-label="Painel Administrativo" style="margin:0">Painel Administrativo</h1>
+      <div id="hello" style="font-size:.95rem;color:#a9b8d1;margin-top:2px">Olá, ...</div>
     </div>
-    <div class="actions">
-      <button id="logoutBtn" class="btn btn-outline">Logout</button>
-      <a href="aluno_dashboard.html" class="btn btn-outline">Ver Dashboard do Aluno</a>
-      <a href="empresas_dashboard.html" class="btn btn-outline">Ver Empresas</a>
-      <a href="cadastrar.html" class="btn btn-outline">Cadastrar Aluno</a>
-    </div>
-  </header>
+  </div>
+  <div class="actions">
+    <button id="profileBtn" class="btn btn-outline" title="Meu perfil">👤</button>
+    <button id="logoutBtn" class="btn btn-outline">Logout</button>
+    <a href="aluno_dashboard.html" class="btn btn-outline">Ver Dashboard do Aluno</a>
+    <a href="empresas_dashboard.html" class="btn btn-outline">Ver Empresas</a>
+    <a href="cadastrar.html" class="btn btn-outline">Cadastrar Aluno</a>
+  </div>
+</header>
+
 
   <main class="wrap">
     <section class="glass panel">
@@ -290,6 +295,19 @@
     document.addEventListener('DOMContentLoaded', () => {
       fetchStudents();
     });
+
+    // carrega nome do admin p/ saudação
+  (async function(){
+    try{
+      const r = await fetch('php/get_current_admin.php',{credentials:'same-origin'});
+      if(r.status===401){ location.href='admin_login.html'; return; }
+      const j = await r.json();
+      const nome = (j.data && j.data.name) || 'Administrador';
+      document.getElementById('hello').textContent = `Olá, ${nome}`;
+    }catch(e){}
+})();
+
+document.getElementById('profileBtn').addEventListener('click',()=>location.href='admin_profile.html');
   </script>
 </body>
 </html>
