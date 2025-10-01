@@ -42,4 +42,6 @@ function audit($action,$entity=null,$entity_id=null,$payload=null){
     ]);
   }catch(Exception $e){}
 }
+// 🔥 Adicione isto:
+$pdo = pdo();
 ?>
