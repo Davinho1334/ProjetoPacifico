@@ -4,6 +4,7 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/db.php';
+$pdo = function_exists('pdo') ? pdo() : null;
 
 // ---- helpers ----
 function body_input(): array {
