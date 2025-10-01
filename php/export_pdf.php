@@ -7,6 +7,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
 require_once __DIR__ . '/db.php';
+date_default_timezone_set('America/Fortaleza'); // Piauí (UTC-3, sem DST)
+
 
 /* =======================================================================
    Compat com qualquer conexão vinda do db.php
@@ -184,7 +186,7 @@ if (!$row) abort_with("Aluno não encontrado.", 404);
 /* =======================================================================
    Variáveis para o template
    ======================================================================= */
-$genDate      = date('d/m/Y H:i');
+$genDate = (new DateTime('now', new DateTimeZone('America/Fortaleza')))->format('d/m/Y H:i');
 
 $alunoId      = (string)($row['id'] ?? '');
 $nome         = vv($row['nome'] ?? '');

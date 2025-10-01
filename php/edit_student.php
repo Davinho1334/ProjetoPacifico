@@ -2,12 +2,14 @@
 // php/edit_student.php
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
+
 require_once __DIR__ . '/db.php';
+
+/* ---------------- helpers ---------------- */
 
 $raw = file_get_contents('php://input') ?: '';
 $in  = json_decode($raw, true) ?: [];
 
-// helpers
 function v(array $src, string $k): ?string { return isset($src[$k]) ? trim((string)$src[$k]) : null; }
 function only_digits(?string $s): string { return preg_replace('/\D+/', '', (string)$s); }
 function mask_cep(?string $s): ?string {
@@ -20,12 +22,27 @@ function norm_uf(?string $s): ?string {
   $s = strtoupper(trim((string)$s));
   return $s ? substr($s,0,2) : null;
 }
+/** Converte dd/mm/aaaa -> aaaa-mm-dd (ou null) */
+function toISODate(?string $s): ?string {
+  $s = trim((string)$s);
+  if ($s === '' || $s === '0000-00-00') return null;
+  if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) { [$y,$m,$d]=explode('-',$s); return checkdate((int)$m,(int)$d,(int)$y) ? $s : null; }
+  if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $s, $m)) {
+    [$all,$d,$mm,$y] = $m;
+    return checkdate((int)$mm,(int)$d,(int)$y) ? sprintf('%04d-%02d-%02d',$y,$mm,$d) : null;
+  }
+  return null;
+}
+
+/* ---------------- entrada ---------------- */
 
 $id               = (int)($in['id'] ?? 0);
 $nome             = v($in,'nome');
 $cpf              = v($in,'cpf');
 $ra               = v($in,'ra');
 $data_nascimento  = v($in,'data_nascimento');
+$data_nascimento_iso = toISODate($data_nascimento);
+
 $contato_aluno    = v($in,'contato_aluno');
 
 $cep              = mask_cep(v($in,'cep'));
@@ -51,6 +68,8 @@ $observacao       = v($in,'observacao');
 
 if ($id <= 0) { http_response_code(400); echo json_encode(['success'=>false,'error'=>'ID inválido']); exit; }
 
+/* ---------------- persistência ---------------- */
+
 try {
   if (isset($pdo) && $pdo instanceof PDO) {
     $st = $pdo->prepare("
@@ -64,73 +83,69 @@ try {
         endereco_bairro = :endereco_bairro, endereco_cidade = :endereco_cidade, endereco_estado = :endereco_estado,
         curso = :curso, turno = :turno, serie = :serie,
         inicio_trabalho = :inicio_trabalho, fim_trabalho = :fim_trabalho,
-        status = COALESCE(:status, status),
-        empresa_id = :empresa_id,
-        recebeu_bolsa = :recebeu_bolsa,
-        renovou_contrato = :renovou_contrato,
-        tipo_contrato = :tipo_contrato,
-        relatorio = :relatorio,
-        observacao = :observacao
+        status = :status, empresa_id = :empresa_id,
+        recebeu_bolsa = :recebeu_bolsa, renovou_contrato = :renovou_contrato, tipo_contrato = :tipo_contrato,
+        relatorio = :relatorio, observacao = :observacao
       WHERE id = :id
-      LIMIT 1
     ");
     $ok = $st->execute([
-      ':nome'=>$nome, ':cpf'=>$cpf, ':ra'=>$ra, ':data_nascimento'=>$data_nascimento, ':contato_aluno'=>$contato_aluno,
-      ':cep'=>$cep, ':endereco_rua'=>$end_rua, ':endereco_numero'=>$end_numero, ':endereco_bairro'=>$end_bairro, ':endereco_cidade'=>$end_cidade, ':endereco_estado'=>$end_estado,
+      ':id'=>$id,
+      ':nome'=>$nome, ':cpf'=>$cpf, ':ra'=>$ra,
+      ':data_nascimento'=>$data_nascimento_iso, // <- ISO / NULL
+      ':contato_aluno'=>$contato_aluno,
+      ':cep'=>$cep, ':endereco_rua'=>$end_rua, ':endereco_numero'=>$end_numero,
+      ':endereco_bairro'=>$end_bairro, ':endereco_cidade'=>$end_cidade, ':endereco_estado'=>$end_estado,
       ':curso'=>$curso, ':turno'=>$turno, ':serie'=>$serie,
-      ':inicio_trabalho'=>$inicio_trabalho, ':fim_trabalho'=>$fim_trabalho, ':status'=>$status,
-      ':empresa_id'=>$empresa_id, ':recebeu_bolsa'=>$recebeu_bolsa, ':renovou_contrato'=>$renovou_contrato,
-      ':tipo_contrato'=>$tipo_contrato, ':relatorio'=>$relatorio, ':observacao'=>$observacao,
-      ':id'=>$id
+      ':inicio_trabalho'=>$inicio_trabalho, ':fim_trabalho'=>$fim_trabalho,
+      ':status'=>$status, ':empresa_id'=>$empresa_id,
+      ':recebeu_bolsa'=>$recebeu_bolsa, ':renovou_contrato'=>$renovou_contrato, ':tipo_contrato'=>$tipo_contrato,
+      ':relatorio'=>$relatorio, ':observacao'=>$observacao,
     ]);
-    echo json_encode(['success'=>$ok?true:false]); exit;
+    if (!$ok) throw new RuntimeException('Falha ao atualizar aluno.');
+    echo json_encode(['success'=>true, 'id'=>$id]); exit;
   }
 
+  // --- MySQLi fallback ---
   $mysqli = (isset($mysqli) && $mysqli instanceof mysqli) ? $mysqli : ((isset($conn) && $conn instanceof mysqli) ? $conn : null);
   if ($mysqli) {
     $sql = "
       UPDATE alunos SET
-        nome = IFNULL(?, nome),
-        cpf  = IFNULL(?, cpf),
-        ra = ?, data_nascimento = ?, contato_aluno = ?,
-        cep = ?, endereco_rua = ?, endereco_numero = ?, endereco_bairro = ?, endereco_cidade = ?, endereco_estado = ?,
+        nome = COALESCE(?, nome),
+        cpf  = COALESCE(?, cpf),
+        ra = ?,
+        data_nascimento = ?,
+        contato_aluno = ?,
+        cep = ?, endereco_rua = ?, endereco_numero = ?,
+        endereco_bairro = ?, endereco_cidade = ?, endereco_estado = ?,
         curso = ?, turno = ?, serie = ?,
         inicio_trabalho = ?, fim_trabalho = ?,
-        status = IFNULL(?, status),
-        empresa_id = ?,
-        recebeu_bolsa = ?,
-        renovou_contrato = ?,
-        tipo_contrato = ?,
-        relatorio = ?,
-        observacao = ?
+        status = ?, empresa_id = ?,
+        recebeu_bolsa = ?, renovou_contrato = ?, tipo_contrato = ?,
+        relatorio = ?, observacao = ?
       WHERE id = ?
-      LIMIT 1
     ";
     $st = $mysqli->prepare($sql);
     $st->bind_param(
-      "ssssssssssssssssisssssi",
-      $nome, $cpf,
-      $ra, $data_nascimento, $contato_aluno,
-      $cep, $end_rua, $end_numero, $end_bairro, $end_cidade, $end_estado,
+      "sssssssssssssssssssssssi",
+      $nome, $cpf, $ra, $data_nascimento_iso,
+      $contato_aluno,
+      $cep, $end_rua, $end_numero,
+      $end_bairro, $end_cidade, $end_estado,
       $curso, $turno, $serie,
       $inicio_trabalho, $fim_trabalho,
-      $status,
-      $empresa_id,
-      $recebeu_bolsa,
-      $renovou_contrato,
-      $tipo_contrato,
-      $relatorio,
-      $observacao,
+      $status, $empresa_id,
+      $recebeu_bolsa, $renovou_contrato, $tipo_contrato,
+      $relatorio, $observacao,
       $id
     );
-    $ok = $st->execute();
-    echo json_encode(['success'=>$ok?true:false]); exit;
+    if (!$st->execute()) throw new RuntimeException('Falha ao atualizar aluno (MySQLi).');
+    echo json_encode(['success'=>true, 'id'=>$id]); exit;
   }
 
-  http_response_code(500);
-  echo json_encode(['success'=>false,'error'=>'Nenhuma conexão de banco ativa (PDO/MySQLi).']);
+  throw new RuntimeException('Nenhuma conexão de banco ativa.');
 } catch (Throwable $e) {
   http_response_code(500);
   echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
+  exit;
 }
 ?>
