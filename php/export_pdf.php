@@ -37,6 +37,25 @@ function yn($v): string {
   if (is_numeric($s)) return ((int)$s)!==0 ? 'Sim' : 'Não';
   return ucfirst($s);
 }
+// helper robusto
+function fmtDateBRSafe($v){
+  if ($v === null) return '-';
+  $s = trim((string)$v);
+  if ($s === '' || $s === '0000-00-00') return '-';
+
+  // aceita d/m/Y
+  if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $s)) {
+    [$d,$m,$y] = explode('/', $s);
+    return checkdate((int)$m,(int)$d,(int)$y) ? sprintf('%02d/%02d/%04d',$d,$m,$y) : '-';
+  }
+  // aceita Y-m-d
+  if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) {
+    [$y,$m,$d] = explode('-', $s);
+    return checkdate((int)$m,(int)$d,(int)$y) ? sprintf('%02d/%02d/%04d',$d,$m,$y) : '-';
+  }
+  return '-';
+}
+
 
 /* =======================================================================
    Entrada
@@ -172,7 +191,8 @@ $nome         = vv($row['nome'] ?? '');
 $cpfOut       = vv($row['cpf'] ?? '');
 $ra           = vv($row['ra'] ?? '');
 $contato      = vv($row['contato_aluno'] ?? '');
-$nascimento   = vv(br_date($row['data_nascimento'] ?? null));
+echo fmtDateBRSafe($aluno['data_nascimento'] ?? null);
+$nascimento   = vv(fmtDateBRSafe($row['data_nascimento'] ?? null));
 
 $curso        = vv($row['curso'] ?? '');
 $serie        = vv($row['serie'] ?? '');
