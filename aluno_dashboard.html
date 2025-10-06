@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dashboard do Aluno</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/png" href="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
@@ -177,12 +177,18 @@
     display:block;
   } 
   </style>
+  <link rel="stylesheet" href="style_scroll_hotfix.css">
+  <style>
+/* --- HOTFIX: menus/listas de selects ficando cortados --- */
+.table, .table * { overflow: visible !important; }
+.modal, .modal-content { overflow: visible !important; } /* deixa a lista extrapolar o container */
+</style>
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-left">
       <img src="https://admin.pi.gov.br/uploads/logowhite_8aeaf326c5.svg" alt="Brasão da SEDUC PI">
-      <h1>Dashboard</h1>
+      <h1 id="pageTitle">Dashboard</h1>
     </div>
     <div class="actions">
       <a href="admin_dashboard.html" class="btn btn-outline">Voltar</a>
@@ -324,6 +330,10 @@
     const $qs  = (sel)=>document.querySelector(sel);
     const $qsa = (sel)=>Array.from(document.querySelectorAll(sel));
 
+    // normalização para busca
+    const normalize = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const digits    = s => String(s||'').replace(/\D/g,'');
+
     // ---- STATUS calc no front ----
     const hojeISO = ()=> {
       const d = new Date();
@@ -348,7 +358,7 @@
       const ini = normISO(inicio);
       const f   = normISO(fim);
       if (f && f < hoje) return 'Encerrado';
-      if (ini && f && ini <= hoje && f >= hoje) return 'Em andamento';
+      if (ini && (!f || f >= hoje) && ini <= hoje) return 'Em andamento';
       return 'Disponível';
     }
 
@@ -833,17 +843,22 @@
       const status = $qs('#filterStatus')?.value || '';
       const curso  = $qs('#filterCurso')?.value || '';
       const escola = $qs('#filterEscola')?.value || '';
-      const q = ($qs('#filterSearch')?.value || '').trim().toLowerCase();
+      const rawQ = ($qs('#filterSearch')?.value || '').trim();
+      const q   = normalize(rawQ);
+      const qd  = digits(rawQ);
       let filtered = allStudents.slice();
       if(status) filtered = filtered.filter(x => x.status === status);
       if(curso)  filtered = filtered.filter(x => x.curso === curso);
       if(escola) filtered = filtered.filter(x => x.escola === escola);
-      if(q) filtered = filtered.filter(x =>
-        (x.nome||'').toLowerCase().includes(q) ||
-        (x.cpf||'').toLowerCase().includes(q)  ||
-        (x.ra||'').toLowerCase().includes(q)
-      );
-      renderTable(filtered);
+      if(q || qd){
+        filtered = filtered.filter(x => {
+          const nome = normalize(x.nome||'');
+          const cpf  = digits(x.cpf||'');
+          const ra   = digits(x.ra||'');
+          return (q && nome.includes(q)) || (qd && (cpf.includes(qd) || ra.includes(qd)));
+        });
+      }
+renderTable(filtered);
       renderCharts(filtered);
     }
 
@@ -880,7 +895,7 @@
       $qs('#edit_observacao').value= st.observacao || '';
       $qs('#edit_tipo_contrato').value = st.tipo_contrato || '';
 
-      const empresaId = st.empresa_id || st.empresa || '';
+      const empresaId = (st.empresa_id ?? '');
       buildCompanySelect(empresaId);
 
       $qs('#edit_inicio').value   = st.inicio_trabalho || '';
