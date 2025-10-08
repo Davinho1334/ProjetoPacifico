@@ -42,6 +42,17 @@ function audit($action,$entity=null,$entity_id=null,$payload=null){
     ]);
   }catch(Exception $e){}
 }
+
+// --- Compatibilidade: expõe $pdo (e $mysqli=null) para scripts legados que usam
+// isset($pdo) / isset($mysqli) após dar um `require 'db.php'`.
+try {
+  $pdo = pdo();
+} catch (Throwable $e) {
+  // se a conexão falhar, mantemos $pdo=null e deixamos os endpoints tratarem o erro
+  $pdo = null;
+}
+
+$mysqli = null;
 // 🔥 Adicione isto:
 $pdo = pdo();
 ?>
